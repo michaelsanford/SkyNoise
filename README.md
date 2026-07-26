@@ -1,32 +1,79 @@
-# React + TypeScript + Vite
+# SkyNoise ✈️🔊
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SkyNoise is a serverless, privacy-first Single Page Application (SPA) Progressive Web App (PWA) designed to track overhead flights, assess their acoustic noise profiles, and log historical overhead passes in real-time. 
 
-Currently, two official plugins are available:
+Designed for residents living along landing and takeoff corridors, it answers two core questions:
+1. **"I am here, will it be noisy?"**
+2. **"What was that aircraft that just flew over?"**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🌟 Key Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+*   **Interactive Radar Sweep**: Displays an enlarged $340\text{px}$ vector radar canvas detailing cardinal directions (`N`, `E`, `S`, `W`) and concentric range indicators.
+*   **Track-Rotated Telemetry Symbols**: Draws vector aircraft icons aligned to their physical flight headings (`track`), coupled with real-time text overlays showing the callsign and Flight Level (e.g. `FL018`).
+*   **Closest Point of Approach (CPA) Math**: Computes relative Haversine distances, azimuth bearings, whether a flight is heading towards you, its cross-track path deviation, and counts down the ETA (Estimated Time of Arrival) to your zenith coordinates.
+*   **Flight Trajectory Analyzer**: Classifies flight movements dynamically as **Landing**, **Departing**, **Transit**, or **Unknown** based on climb/descent barometric rate vectors.
+*   **Acoustic Noise Profiler**: Categorizes noise impact levels (**High**, **Medium**, **Low**) by evaluating altitude boundaries ($< 6,000\text{ ft}$) and aircraft types (e.g. heavy airliners vs. turboprops vs. light general aviation vs. helicopters).
+*   **"Who Was That?" Persistent Log**: Automatically tracks flights entering your immediate overhead radius (default $1.5\text{ km}$) and logs their telemetry (minimum distance and altitude) to your local browser storage once the pass completes.
+*   **Magnetometer Compass Integration**: Toggles the radar canvas between `North Up` and `Heading Up` (aligning with your phone's physical orientation). All text labels and tags automatically counter-rotate to stay upright ($0^\circ$ relative to the screen layout) for clear readability.
+*   **Network Guard & Backoff Protection**: 
+    *   **Refresh Rate Selectors**: Change polling rates between 5s, 10s, 20s, and 30s.
+    *   **Exponential Backoff**: Automatically backs off fetch frequency (up to 60s) if the client encounters `429 Too Many Requests` API rate limits or network issues, resetting to default once calls succeed.
+    *   **Offline Airport Fallback**: In the absence of GPS access, resolves coordinates using an offline lookup dictionary of major North American airports (e.g. CYHU, CYUL, CYYZ, etc.).
 
-## Expanding the Oxlint configuration
+---
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## 🔒 Privacy & Regulatory Compliance (GDPR, PIPEDA, Quebec Loi 25)
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+SkyNoise is entirely **client-side** and runs serverless:
+*   **We Store Nothing**: Your coordinates, local configuration parameters, and overhead logs reside strictly inside your local browser cache (`localStorage`) and are never sent to any central database.
+*   **Content Security Policy**: Restricts external connections strictly to the open CORS-enabled `https://api.airplanes.live` endpoint.
+*   **Right to Be Forgotten**: Erasing your logs and configuration is instant and can be performed using the "Clear Log" button in the history tab.
+*   Detailed regulatory alignment is documented in [PRIVACY.md](file:///P:/github.com/michaelsanford/yhu/PRIVACY.md).
+
+---
+
+## 🛠️ Technology Stack
+
+*   **Framework**: [React 19](https://react.dev/) + [TypeScript 6](https://www.typescriptlang.org/) + [Vite 8](https://vite.dev/)
+*   **PWA Integrations**: `vite-plugin-pwa` for Workbox offline asset pre-caching and manifest registrations.
+*   **Design System**: Custom CSS with responsive layouts, glowing alerts, glassmorphism overlays, and smooth layout animations.
+
+---
+
+## 🚀 Quick Start & Development
+
+### 1. Installation
+Install the project dependencies locally:
+```bash
+npm install
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+### 2. Dev Server
+Launch the local Vite server:
+```bash
+npm run dev
+```
+
+### 3. Production Build
+Verify TypeScript compilation and bundle PWA assets (service workers will be compiled inside `dist/`):
+```bash
+npm run build
+```
+
+---
+
+## 📦 Continuous Deployment (GitHub Pages)
+
+The repository contains a Git Action workflow in [.github/workflows/deploy.yml](file:///P:/github.com/michaelsanford/yhu/.github/workflows/deploy.yml).
+
+### How to Deploy:
+1. Push your code to the main branch:
+   ```bash
+   git push -u origin main
+   ```
+2. Navigate to your repository settings on GitHub.
+3. Click on the **Pages** tab.
+4. Under **Build and deployment** -> **Source**, select **GitHub Actions**.
+5. The workflow will automatically compile and host the app at `https://michaelsanford.github.io/SkyNoise/`.
