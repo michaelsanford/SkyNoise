@@ -622,18 +622,23 @@ export default function App() {
                     <div className="radar-sweep"></div>
                     <div className="radar-grid"></div>
                     <div className="radar-grid-v"></div>
-                    <div className="radar-circle" style={{ width: '40px', height: '40px' }}></div>
-                    <div className="radar-circle" style={{ width: '80px', height: '80px' }}></div>
-                    <div className="radar-circle" style={{ width: '120px', height: '120px' }}></div>
+                    <div className="radar-circle" style={{ width: '70px', height: '70px' }}></div>
+                    <div className="radar-circle" style={{ width: '140px', height: '140px' }}></div>
+                    <div className="radar-circle" style={{ width: '210px', height: '210px' }}></div>
                     
+                    {/* Compass Cardinals */}
+                    <div className="radar-cardinal cardinal-n">N</div>
+                    <div className="radar-cardinal cardinal-e">E</div>
+                    <div className="radar-cardinal cardinal-s">S</div>
+                    <div className="radar-cardinal cardinal-w">W</div>
+
                     {/* Render target center */}
                     <div className="radar-dot" style={{ top: 'calc(50% - 4px)', left: 'calc(50% - 4px)', backgroundColor: '#38bdf8', boxShadow: 'none' }}></div>
                     
-                    {/* Render aircraft dots relative to user */}
+                    {/* Render aircraft on radar */}
                     {aircraft.map((ac) => {
                       const maxR = settings.detectionRadiusKm;
                       // Calculate polar coordinates mapping to radar canvas
-                      // 0 bearing is North (up), we convert to screen coords
                       const radiusPercent = (ac.distanceKm / maxR) * 50; // max radius is 50% from center
                       const angleRad = ((ac.bearingDeg - 90) * Math.PI) / 180;
                       
@@ -642,19 +647,51 @@ export default function App() {
                       
                       // Map noise levels to dot colors
                       const dotColors = { high: '#f43f5e', medium: '#fbbf24', low: '#34d399' };
+                      const activeColor = dotColors[ac.noiseLevel];
+                      const heading = ac.track || 0;
                       
                       return (
                         <div 
                           key={ac.hex}
-                          className="radar-dot"
-                          title={`${ac.cleanFlight} (${ac.distanceKm} km)`}
+                          className="radar-aircraft"
+                          title={`${ac.cleanFlight || 'Unknown'} (${ac.distanceKm} km, Alt: ${ac.altitudeFt} ft, Heading: ${heading}°)`}
                           style={{
-                            left: `calc(${left}% - 4px)`,
-                            top: `calc(${top}% - 4px)`,
-                            backgroundColor: dotColors[ac.noiseLevel],
-                            boxShadow: `0 0 8px ${dotColors[ac.noiseLevel]}`
+                            left: `${left}%`,
+                            top: `${top}%`,
                           }}
-                        />
+                        >
+                          {/* Pulsing beacon effect for loud planes */}
+                          {ac.noiseLevel === 'high' && (
+                            <div 
+                              className="radar-aircraft-beacon"
+                              style={{ backgroundColor: activeColor }}
+                            />
+                          )}
+                          
+                          {/* Stylized rotated airplane icon */}
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            width="16" 
+                            height="16" 
+                            viewBox="0 0 24 24" 
+                            fill="currentColor"
+                            style={{
+                              transform: `rotate(${heading}deg)`,
+                              color: activeColor,
+                              filter: `drop-shadow(0 0 3px ${activeColor})`,
+                              transition: 'transform 0.5s ease'
+                            }}
+                          >
+                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                          </svg>
+
+                          {/* Callsign and altitude tag */}
+                          <div className="radar-aircraft-tag">
+                            {ac.cleanFlight || 'UNKN'}
+                            <br/>
+                            {Math.round(ac.altitudeFt / 100) / 10}k ft
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
