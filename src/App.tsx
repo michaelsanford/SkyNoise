@@ -91,7 +91,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   detectionRadiusKm: 15,
   overheadRadiusKm: 1.5,
   useGPS: true,
-  pollIntervalSeconds: 10
+  pollIntervalSeconds: 10,
+  radarOrientation: 'north-up'
 };
 
 // Internal interface for tracking active passes over the house
@@ -139,11 +140,54 @@ export default function App() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [gpsPermissionState, setGpsPermissionState] = useState<string>('unknown');
   const [currentPollIntervalMs, setCurrentPollIntervalMs] = useState<number>(() => (settings.pollIntervalSeconds || 10) * 1000);
+  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
 
   // Synchronize dynamic polling rate when settings frequency changes
   useEffect(() => {
     setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
   }, [settings.pollIntervalSeconds]);
+
+  // Track phone compass/heading if radar orientation is heading-up
+  useEffect(() => {
+    if (settings.radarOrientation !== 'heading-up') {
+      setDeviceHeading(null);
+      return;
+    }
+
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      if ('webkitCompassHeading' in e) {
+        setDeviceHeading((e as any).webkitCompassHeading);
+      } else if (e.alpha !== null) {
+        // Android/Chrome fallback (alpha increases CCW, we convert to degrees CW)
+        setDeviceHeading((360 - e.alpha) % 360);
+      }
+    };
+
+    const setupOrientation = async () => {
+      const DeviceOrientation = (window as any).DeviceOrientationEvent;
+      if (DeviceOrientation && typeof DeviceOrientation.requestPermission === 'function') {
+        try {
+          const permission = await DeviceOrientation.requestPermission();
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+          } else {
+            setSettings(prev => ({ ...prev, radarOrientation: 'north-up' }));
+          }
+        } catch (err) {
+          console.warn('Compass permission request failed:', err);
+          setSettings(prev => ({ ...prev, radarOrientation: 'north-up' }));
+        }
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    };
+
+    setupOrientation();
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, [settings.radarOrientation]);
 
   // Local state for Settings form
   const [tempLat, setTempLat] = useState<string>('');
@@ -634,7 +678,10 @@ export default function App() {
               {/* Radar Sweep Widget */}
               <div className="card" style={{ padding: '1rem' }}>
                 <div className="radar-wrapper">
-                  <div className={`radar-container ${settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) ? 'stale' : ''}`}>
+                  <div 
+                    className={`radar-container ${settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) ? 'stale' : ''}`}
+                    style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `rotate(${-deviceHeading}deg)`, transition: 'transform 0.2s ease-out' } : {}}
+                  >
                     <div className="radar-sweep"></div>
                     <div className="radar-grid"></div>
                     <div className="radar-grid-v"></div>
@@ -643,17 +690,29 @@ export default function App() {
                     <div className="radar-circle" style={{ width: '255px', height: '255px' }}></div>
                     
                     {/* Compass Cardinals */}
-                    <div className="radar-cardinal cardinal-n">N</div>
-                    <div className="radar-cardinal cardinal-e">E</div>
-                    <div className="radar-cardinal cardinal-s">S</div>
-                    <div className="radar-cardinal cardinal-w">W</div>
+                    <div 
+                      className="radar-cardinal cardinal-n"
+                      style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translateX(-50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}
+                    >N</div>
+                    <div 
+                      className="radar-cardinal cardinal-e"
+                      style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translateY(-50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}
+                    >E</div>
+                    <div 
+                      className="radar-cardinal cardinal-s"
+                      style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translateX(-50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}
+                    >S</div>
+                    <div 
+                      className="radar-cardinal cardinal-w"
+                      style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translateY(-50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}
+                    >W</div>
 
                     {/* Render target center */}
                     <div className="radar-dot" style={{ top: 'calc(50% - 4px)', left: 'calc(50% - 4px)', backgroundColor: '#38bdf8', boxShadow: 'none' }}></div>
                     
                     {/* Stale Overlay */}
                     {settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) && (
-                      <div className="radar-stale-overlay">
+                      <div className="radar-stale-overlay" style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translate(-50%, -50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}>
                         Signal Stale
                       </div>
                     )}
@@ -709,7 +768,10 @@ export default function App() {
                           </svg>
 
                           {/* Callsign and Flight Level tag */}
-                          <div className="radar-aircraft-tag">
+                          <div 
+                            className="radar-aircraft-tag"
+                            style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translateX(-50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}
+                          >
                             {ac.cleanFlight || 'UNKN'}
                             <br/>
                             FL{Math.round(ac.altitudeFt / 100).toString().padStart(3, '0')}
@@ -1046,12 +1108,68 @@ export default function App() {
             </div>
           </div>
 
+          {/* Radar Orientation Selector Card */}
+          <div className="card">
+            <h2>Radar Orientation</h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Choose whether the top of the radar screen represents geographic North, or aligns with your device's compass heading.
+            </p>
+            
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <button 
+                className={`btn ${settings.radarOrientation === 'north-up' ? '' : 'btn-secondary'}`}
+                style={{ flex: 1 }}
+                onClick={() => setSettings(prev => ({ ...prev, radarOrientation: 'north-up' }))}
+              >
+                North Up
+              </button>
+              <button 
+                className={`btn ${settings.radarOrientation === 'heading-up' ? '' : 'btn-secondary'}`}
+                style={{ flex: 1 }}
+                onClick={async () => {
+                  const DeviceOrientation = (window as any).DeviceOrientationEvent;
+                  if (DeviceOrientation && typeof DeviceOrientation.requestPermission === 'function') {
+                    try {
+                      const res = await DeviceOrientation.requestPermission();
+                      if (res === 'granted') {
+                        setSettings(prev => ({ ...prev, radarOrientation: 'heading-up' }));
+                      } else {
+                        alert('Compass permission denied. Defaulting to North Up.');
+                      }
+                    } catch (err) {
+                      alert('Compass access failed: ' + err);
+                    }
+                  } else {
+                    setSettings(prev => ({ ...prev, radarOrientation: 'heading-up' }));
+                  }
+                }}
+              >
+                Heading Up (Compass)
+              </button>
+            </div>
+            
+            {settings.radarOrientation === 'heading-up' && (
+              <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
+                Compass Reading: {deviceHeading !== null ? `${Math.round(deviceHeading)}°` : 'calibrating...'}
+                <br/>
+                <span style={{ fontStyle: 'italic' }}>Note: If reading is erratic, wave device in a figure-8 motion to calibrate sensor.</span>
+              </div>
+            )}
+          </div>
+
           {/* Compliance & Privacy Disclosure Card */}
           <div className="privacy-box">
-            <div className="privacy-title" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <Icons.Shield /> GDPR, PIPEDA, & Loi 25 Compliance
+            <div className="privacy-title" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem' }}>
+              <Icons.Shield /> Privacy Disclosure: We Store Nothing
             </div>
-            This application operates entirely in your client browser. Your device GPS location sensor data and IATA airport lookups are processed strictly on your machine and stored locally in browser <code>localStorage</code>. No coordinate tracking, flight histories, IP logs, or cookies are sent to, stored on, or gathered by any central server. Real-time aviation telemetry queries are made directly from your device to the open-source, CORS-enabled <code>api.airplanes.live</code> server.
+            <p style={{ margin: '0 0 0.5rem 0' }}>
+              <strong>All processing is 100% local.</strong> Your device GPS coordinates, local search queries, and logged overhead flight history are stored strictly inside your browser's local cache (<code>localStorage</code>) and never sent to or cached on any server.
+            </p>
+            <div style={{ display: 'grid', gap: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+              <div><strong style={{ color: '#38bdf8' }}>Loi 25 (Quebec):</strong> Consent is dynamic. No remote collection of location metrics. You have custody to wipe your browser logs at any time.</div>
+              <div><strong style={{ color: '#38bdf8' }}>PIPEDA (Canada):</strong> Coordinates are only queried in real-time to compute flight distances locally and discarded immediately. No user profiles are created.</div>
+              <div><strong style={{ color: '#38bdf8' }}>GDPR (EU):</strong> Privacy by design. Direct device queries to open source feeds. Right to be forgotten is automated by clicking "Clear Log" below.</div>
+            </div>
           </div>
         </div>
       )}

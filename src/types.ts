@@ -42,6 +42,7 @@ export interface UserSettings {
   overheadRadiusKm: number; // default 1.5 km
   useGPS: boolean;
   pollIntervalSeconds: number; // custom update frequency in seconds
+  radarOrientation: 'north-up' | 'heading-up'; // radar alignment option
 }
 
 export interface OverheadEvent {
