@@ -90,7 +90,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   maxAltitudeFt: 10000,
   detectionRadiusKm: 15,
   overheadRadiusKm: 1.5,
-  useGPS: true
+  useGPS: true,
+  pollIntervalSeconds: 10
 };
 
 // Internal interface for tracking active passes over the house
@@ -137,7 +138,13 @@ export default function App() {
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [gpsPermissionState, setGpsPermissionState] = useState<string>('unknown');
-  
+  const [currentPollIntervalMs, setCurrentPollIntervalMs] = useState<number>(() => (settings.pollIntervalSeconds || 10) * 1000);
+
+  // Synchronize dynamic polling rate when settings frequency changes
+  useEffect(() => {
+    setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
+  }, [settings.pollIntervalSeconds]);
+
   // Local state for Settings form
   const [tempLat, setTempLat] = useState<string>('');
   const [tempLon, setTempLon] = useState<string>('');
@@ -251,6 +258,11 @@ export default function App() {
         const url = `https://api.airplanes.live/v2/point/${lat}/${lon}/${radiusNm}`;
         const response = await fetch(url);
         
+        if (response.status === 429) {
+          setCurrentPollIntervalMs(prev => Math.min(60000, prev * 2));
+          throw new Error("Rate limited by API server. Automatically backing off polling frequency.");
+        }
+
         if (!response.ok) {
           throw new Error(`API returned HTTP ${response.status}`);
         }
@@ -259,6 +271,8 @@ export default function App() {
         const rawList: RawAircraft[] = data.ac || [];
         setLastFetchTime(new Date());
         setFetchError(null);
+        // Reset backoff on successful fetch
+        setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
 
         // Process aircraft updates
         const updatedList: AircraftUpdate[] = rawList
@@ -304,6 +318,8 @@ export default function App() {
       } catch (err: any) {
         console.error('Fetch error:', err);
         setFetchError(`Network error fetching radar data: ${err.message}`);
+        // Backoff slightly on network error
+        setCurrentPollIntervalMs(prev => Math.min(60000, prev * 1.5));
       } finally {
         isFetching = false;
         setIsPolling(false);
@@ -386,13 +402,13 @@ export default function App() {
     // Trigger immediately on load
     fetchAircraftData();
 
-    // Trigger every 8 seconds
-    intervalId = window.setInterval(fetchAircraftData, 8000);
+    // Trigger periodically
+    intervalId = window.setInterval(fetchAircraftData, currentPollIntervalMs);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [settings.homeLat, settings.homeLon, settings.detectionRadiusKm, settings.overheadRadiusKm, settings.maxAltitudeFt]);
+  }, [settings.homeLat, settings.homeLon, settings.detectionRadiusKm, settings.overheadRadiusKm, settings.maxAltitudeFt, currentPollIntervalMs]);
 
   // Clean active passes on component unmount
   useEffect(() => {
@@ -618,13 +634,13 @@ export default function App() {
               {/* Radar Sweep Widget */}
               <div className="card" style={{ padding: '1rem' }}>
                 <div className="radar-wrapper">
-                  <div className="radar-container">
+                  <div className={`radar-container ${settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) ? 'stale' : ''}`}>
                     <div className="radar-sweep"></div>
                     <div className="radar-grid"></div>
                     <div className="radar-grid-v"></div>
-                    <div className="radar-circle" style={{ width: '70px', height: '70px' }}></div>
-                    <div className="radar-circle" style={{ width: '140px', height: '140px' }}></div>
-                    <div className="radar-circle" style={{ width: '210px', height: '210px' }}></div>
+                    <div className="radar-circle" style={{ width: '85px', height: '85px' }}></div>
+                    <div className="radar-circle" style={{ width: '170px', height: '170px' }}></div>
+                    <div className="radar-circle" style={{ width: '255px', height: '255px' }}></div>
                     
                     {/* Compass Cardinals */}
                     <div className="radar-cardinal cardinal-n">N</div>
@@ -635,6 +651,13 @@ export default function App() {
                     {/* Render target center */}
                     <div className="radar-dot" style={{ top: 'calc(50% - 4px)', left: 'calc(50% - 4px)', backgroundColor: '#38bdf8', boxShadow: 'none' }}></div>
                     
+                    {/* Stale Overlay */}
+                    {settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) && (
+                      <div className="radar-stale-overlay">
+                        Signal Stale
+                      </div>
+                    )}
+
                     {/* Render aircraft on radar */}
                     {aircraft.map((ac) => {
                       const maxR = settings.detectionRadiusKm;
@@ -685,11 +708,11 @@ export default function App() {
                             <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
                           </svg>
 
-                          {/* Callsign and altitude tag */}
+                          {/* Callsign and Flight Level tag */}
                           <div className="radar-aircraft-tag">
                             {ac.cleanFlight || 'UNKN'}
                             <br/>
-                            {Math.round(ac.altitudeFt / 100) / 10}k ft
+                            FL{Math.round(ac.altitudeFt / 100).toString().padStart(3, '0')}
                           </div>
                         </div>
                       );
@@ -727,6 +750,7 @@ export default function App() {
                             <div>
                               <div className="detail-label">Altitude</div>
                               <div className="detail-value">{ac.altitudeFt.toLocaleString()} ft</div>
+                              <div className="detail-value" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>FL{Math.round(ac.altitudeFt / 100).toString().padStart(3, '0')}</div>
                             </div>
                             <div>
                               <div className="detail-label">Trajectory</div>
@@ -773,6 +797,7 @@ export default function App() {
                             <div>
                               <div className="detail-label">Altitude</div>
                               <div className="detail-value">{ac.altitudeFt.toLocaleString()} ft</div>
+                              <div className="detail-value" style={{ fontSize: '0.8rem', color: '#94a3b8' }}>FL{Math.round(ac.altitudeFt / 100).toString().padStart(3, '0')}</div>
                             </div>
                             <div>
                               <div className="detail-label">Current Distance</div>
@@ -952,6 +977,31 @@ export default function App() {
               <button type="submit" className="btn">Save Coordinates</button>
             </form>
           )}
+
+          {/* Refresh Frequency Selector Card */}
+          <div className="card">
+            <h2>Scan Refresh Frequency</h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Choose how often to fetch aircraft data. If the app encounters API rate limits, it will automatically back off and poll less frequently.
+            </p>
+            <div className="form-group">
+              <label>Fetch Interval: {settings.pollIntervalSeconds} seconds</label>
+              <select 
+                value={settings.pollIntervalSeconds}
+                onChange={(e) => setSettings(prev => ({ ...prev, pollIntervalSeconds: parseInt(e.target.value) }))}
+              >
+                <option value="5">Fast (5s) - Active Tracking</option>
+                <option value="10">Standard (10s) - Balanced</option>
+                <option value="20">Relaxed (20s) - Low Resource</option>
+                <option value="30">Eco (30s) - Battery Saver</option>
+              </select>
+            </div>
+            {currentPollIntervalMs > settings.pollIntervalSeconds * 1000 && (
+              <div style={{ color: '#fbbf24', fontSize: '0.85rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.5rem' }}>
+                <span>⚠️</span> Rate Limit Backoff Active: Currently polling every {Math.round(currentPollIntervalMs / 1000)} seconds.
+              </div>
+            )}
+          </div>
 
           {/* Threshold configurations */}
           <div className="card">

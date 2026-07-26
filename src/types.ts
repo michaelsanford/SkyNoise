@@ -41,6 +41,7 @@ export interface UserSettings {
   detectionRadiusKm: number; // default 15 km
   overheadRadiusKm: number; // default 1.5 km
   useGPS: boolean;
+  pollIntervalSeconds: number; // custom update frequency in seconds
 }
 
 export interface OverheadEvent {
