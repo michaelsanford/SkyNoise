@@ -127,6 +127,22 @@ const Icons = {
   )
 };
 
+/**
+ * Feature-detect the iOS 13+ orientation permission gate.
+ *
+ * Narrows through `unknown` rather than casting the window through `any`, so a
+ * typo in `requestPermission` is still a compile error. Returns null on every
+ * platform that exposes the sensor without asking.
+ */
+function getOrientationPermissionAPI(): DeviceOrientationPermissionAPI | null {
+  const ctor: unknown = window.DeviceOrientationEvent;
+  if (typeof ctor !== 'function') return null;
+  const candidate = ctor as { requestPermission?: unknown };
+  return typeof candidate.requestPermission === 'function'
+    ? (candidate as DeviceOrientationPermissionAPI)
+    : null;
+}
+
 // Internal interface for tracking active passes over the house
 interface ActivePass {
   hex: string;
@@ -194,19 +210,23 @@ export default function App() {
     }
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      if ('webkitCompassHeading' in e) {
-        setDeviceHeading((e as any).webkitCompassHeading);
-      } else if (e.alpha !== null) {
+      // Sensor input, so validate rather than trust: a non-finite heading would
+      // propagate into `rotate(${-deviceHeading}deg)` and produce an invalid
+      // transform on the radar and every counter-rotated label.
+      const webkitHeading = e.webkitCompassHeading;
+      if (typeof webkitHeading === 'number' && Number.isFinite(webkitHeading)) {
+        setDeviceHeading(webkitHeading);
+      } else if (e.alpha !== null && Number.isFinite(e.alpha)) {
         // Android/Chrome fallback (alpha increases CCW, we convert to degrees CW)
         setDeviceHeading((360 - e.alpha) % 360);
       }
     };
 
     const setupOrientation = async () => {
-      const DeviceOrientation = (window as any).DeviceOrientationEvent;
-      if (DeviceOrientation && typeof DeviceOrientation.requestPermission === 'function') {
+      const permissionApi = getOrientationPermissionAPI();
+      if (permissionApi) {
         try {
-          const permission = await DeviceOrientation.requestPermission();
+          const permission = await permissionApi.requestPermission();
           if (permission === 'granted') {
             window.addEventListener('deviceorientation', handleOrientation);
           } else {
@@ -407,9 +427,12 @@ export default function App() {
         setAircraft(updatedList);
         processPasses(updatedList);
 
-      } catch (err: any) {
+      } catch (err) {
         console.error('Fetch error:', err);
-        setFetchError(`Network error fetching radar data: ${err.message}`);
+        // `catch` is `unknown` under strict; narrow rather than assume .message
+        // exists. A thrown non-Error would otherwise render "undefined" to the user.
+        const message = err instanceof Error ? err.message : String(err);
+        setFetchError(`Network error fetching radar data: ${message}`);
         // Backoff slightly on network error
         setCurrentPollIntervalMs(prev => Math.min(60000, prev * 1.5));
       } finally {
@@ -1276,10 +1299,10 @@ export default function App() {
                 className={`btn ${settings.radarOrientation === 'heading-up' ? '' : 'btn-secondary'}`}
                 style={{ flex: 1 }}
                 onClick={async () => {
-                  const DeviceOrientation = (window as any).DeviceOrientationEvent;
-                  if (DeviceOrientation && typeof DeviceOrientation.requestPermission === 'function') {
+                  const permissionApi = getOrientationPermissionAPI();
+                  if (permissionApi) {
                     try {
-                      const res = await DeviceOrientation.requestPermission();
+                      const res = await permissionApi.requestPermission();
                       if (res === 'granted') {
                         setSettings(prev => ({ ...prev, radarOrientation: 'heading-up' }));
                       } else {
