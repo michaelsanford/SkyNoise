@@ -1,4 +1,37 @@
 import { describe, it, expect } from 'vitest';
+import { angularDeltaDeg } from './geo';
+
+describe('angularDeltaDeg', () => {
+  it('returns the direct difference when it does not wrap', () => {
+    expect(angularDeltaDeg(10, 15)).toBe(5);
+    expect(angularDeltaDeg(15, 10)).toBe(5);
+    expect(angularDeltaDeg(90, 180)).toBe(90);
+  });
+
+  it('takes the short way around the compass', () => {
+    // The whole reason this helper exists: naive subtraction gives 358.
+    expect(angularDeltaDeg(359, 1)).toBe(2);
+    expect(angularDeltaDeg(1, 359)).toBe(2);
+    expect(angularDeltaDeg(350, 10)).toBe(20);
+  });
+
+  it('never exceeds 180', () => {
+    expect(angularDeltaDeg(0, 180)).toBe(180);
+    expect(angularDeltaDeg(0, 181)).toBe(179);
+    for (let a = 0; a < 360; a += 7) {
+      for (let b = 0; b < 360; b += 11) {
+        expect(angularDeltaDeg(a, b)).toBeLessThanOrEqual(180);
+      }
+    }
+  });
+
+  it('is zero for identical bearings and handles out-of-range input', () => {
+    expect(angularDeltaDeg(42, 42)).toBe(0);
+    expect(angularDeltaDeg(0, 360)).toBe(0);
+    expect(angularDeltaDeg(-10, 350)).toBe(0);
+  });
+});
+
 import { getDistanceKm, getBearing, calculateCPA } from './geo';
 
 describe('Geo Utilities', () => {
