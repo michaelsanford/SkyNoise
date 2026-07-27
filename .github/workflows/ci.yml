@@ -3,8 +3,10 @@ name: CI Verification
 on:
   push:
     branches: [ main ]
+  # No branch filter: a filter of [main] would skip PRs that target another
+  # branch, so stacked PRs would get no CI at all — and could never satisfy
+  # the required status check.
   pull_request:
-    branches: [ main ]
   # Allows deploy.yml to reuse this workflow as a prerequisite, so a failing
   # lint/typecheck/test/build cannot reach GitHub Pages.
   workflow_call:
