@@ -165,16 +165,23 @@ describe('accessibility styling', () => {
     expect(css).toMatch(/@media \(forced-colors: active\)/);
   });
 
-  it('encodes radar noise level with a non-colour cue', () => {
-    for (const level of ['high', 'medium', 'low']) {
-      const selector = `.radar-aircraft--${level}::before`;
-      const start = css.indexOf(selector);
-      expect(start, `${selector} is missing`).toBeGreaterThan(-1);
-      // Read the declaration block and require a border, i.e. a shape cue that
-      // survives without colour.
-      const block = css.slice(start, css.indexOf('}', start));
-      expect(block, `${selector} has no border cue`).toContain('border:');
-    }
+  it('names the noise level in the radar contact label, not only in its colour', () => {
+    /*
+     * The radar glyph carries noise level in colour alone. A per-level ring around
+     * each contact was tried and removed — it was visually noisy at the density the
+     * radar reaches, and a decorative border is a weak cue in any case.
+     *
+     * What must not regress is the textual cue: the level appears in the
+     * aria-label and title of every contact, so it is available to screen readers
+     * and on hover. The aircraft lists below the radar also pair colour with a text
+     * badge. Residual gap, accepted deliberately: a sighted user with red/green
+     * deficiency cannot distinguish levels from the glyphs alone.
+     */
+    expect(tsx).toMatch(/NOISE_LABELS/);
+    expect(tsx).toMatch(/const noiseText = NOISE_LABELS\[ac\.noiseLevel\]/);
+    // The label the level is interpolated into must reach both sinks.
+    expect(tsx).toMatch(/aria-label=\{description\}/);
+    expect(tsx).toMatch(/title=\{description\}/);
   });
 
   it('provides a visually-hidden utility that stays in the a11y tree', () => {
