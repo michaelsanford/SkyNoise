@@ -1,10 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'child_process';
+
+let commitSha = 'dev';
+try {
+  commitSha = execSync('git rev-parse --short HEAD').toString().trim();
+} catch (e) {
+  // Fallback if git is not installed or repo is detached
+}
+if (process.env.VITE_COMMIT_SHA) {
+  commitSha = process.env.VITE_COMMIT_SHA;
+}
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/SkyNoise/',
+  define: {
+    __COMMIT_SHA__: JSON.stringify(commitSha),
+  },
   plugins: [
     react(),
     VitePWA({

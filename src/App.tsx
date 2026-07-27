@@ -4,6 +4,8 @@ import { getDistanceKm, getBearing, calculateCPA } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
 import { lookupAirport } from './utils/airports';
 
+declare const __COMMIT_SHA__: string;
+
 interface IconProps {
   className?: string;
   style?: React.CSSProperties;
@@ -1191,6 +1193,10 @@ export default function App() {
               <div><strong style={{ color: '#38bdf8' }}>PIPEDA (Canada):</strong> Coordinates are only queried in real-time to compute flight distances locally and discarded immediately. No user profiles are created.</div>
               <div><strong style={{ color: '#38bdf8' }}>GDPR (EU):</strong> Privacy by design. Direct device queries to open source feeds. Right to be forgotten is automated by clicking "Clear Log" below.</div>
             </div>
+          </div>
+          {/* App Version / Commit SHA Footer */}
+          <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#64748b', fontSize: '0.75rem' }}>
+            SkyNoise Tracker v1.3.0 (commit: {__COMMIT_SHA__})
           </div>
         </div>
       )}
