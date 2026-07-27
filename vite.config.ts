@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 let commitSha = 'dev';
 try {
   commitSha = execSync('git rev-parse --short HEAD').toString().trim();
-} catch (e) {
+} catch {
   // Fallback if git is not installed or repo is detached
 }
 if (process.env.VITE_COMMIT_SHA) {
