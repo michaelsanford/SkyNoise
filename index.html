@@ -3,16 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.airplanes.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:;" />
+    <!-- viewport-fit=cover is required for env(safe-area-inset-*) to resolve to
+         anything other than 0 on notched devices. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.airplanes.live; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:;" />
     <title>SkyNoise Tracker</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    </noscript>
+    <meta name="theme-color" content="#0b0f19" />
+    <!-- The manifest carries theme_color too, but iOS and some in-app browsers
+         only read the meta tag. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Self-hosted variable font: one file covers weights 400-800. Preloaded
+         because the stylesheet that references it is discovered a round-trip
+         later. crossorigin is required on font preloads even same-origin. -->
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/outfit-latin-var.woff2" crossorigin />
   </head>
   <body style="margin: 0; background-color: #0b0f19;">
     <div id="root"></div>
