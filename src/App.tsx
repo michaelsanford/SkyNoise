@@ -86,7 +86,26 @@ const Icons = {
       <line x1="15" y1="9" x2="9" y2="15" />
       <line x1="9" y1="9" x2="15" y2="15" />
     </svg>
-  )
+  ),
+  Pin: (props: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  ),
+  Signal: (props: IconProps & { level?: number }) => {
+    const { level = 0, ...rest } = props;
+    const colorActive = rest.style?.color || 'currentColor';
+    const colorInactive = 'rgba(255, 255, 255, 0.15)';
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none" {...rest}>
+        <rect x="3" y="17" width="3" height="4" rx="1" fill={level >= 1 ? colorActive : colorInactive} />
+        <rect x="8" y="13" width="3" height="8" rx="1" fill={level >= 2 ? colorActive : colorInactive} />
+        <rect x="13" y="9" width="3" height="12" rx="1" fill={level >= 3 ? colorActive : colorInactive} />
+        <rect x="18" y="5" width="3" height="16" rx="1" fill={level >= 4 ? colorActive : colorInactive} />
+      </svg>
+    );
+  }
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -626,11 +645,26 @@ export default function App() {
         <span className={`status-indicator ${settings.homeLat !== null ? 'status-active' : 'status-offline'}`}></span>
         {settings.homeLat !== null ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Icons.GPS style={{ width: '13px', height: '13px' }} />
-            <span>GPS:[{!settings.useGPS ? 'MANUAL' : gpsAccuracy === null ? '     ' : gpsAccuracy < 10 ? '█████' : gpsAccuracy < 30 ? '████ ' : gpsAccuracy < 100 ? '███  ' : gpsAccuracy < 500 ? '██   ' : '█    '}]</span>
+            {!settings.useGPS ? (
+              <>
+                <Icons.Pin style={{ width: '13px', height: '13px', color: '#38bdf8' }} />
+                <span>MANUAL</span>
+              </>
+            ) : (
+              <>
+                <Icons.Signal 
+                  level={gpsAccuracy === null ? 0 : gpsAccuracy < 10 ? 4 : gpsAccuracy < 30 ? 3 : gpsAccuracy < 100 ? 2 : 1} 
+                  style={{ width: '13px', height: '13px', color: '#34d399' }} 
+                />
+                <span>GPS   </span>
+              </>
+            )}
             <span>•</span>
             {isPolling ? (
-              <span>Loading...</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Icons.Clock style={{ width: '13px', height: '13px', opacity: 0.5 }} />
+                <span>LOADING </span>
+              </span>
             ) : lastFetchTime ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Icons.Clock style={{ width: '13px', height: '13px' }} />
@@ -642,7 +676,10 @@ export default function App() {
                 })()}</span>
               </span>
             ) : (
-              <span>Pending</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Icons.Clock style={{ width: '13px', height: '13px' }} />
+                <span>PENDING </span>
+              </span>
             )}
           </span>
         ) : (
