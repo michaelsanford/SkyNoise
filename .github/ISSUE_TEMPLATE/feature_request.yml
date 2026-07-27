@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an enhancement or new feature idea.
+title: "[Feature]: "
+labels: ["enhancement"]
+assignees:
+  - michaelsanford
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea or improvement? Share it below!
+  - type: input
+    id: country
+    attributes:
+      label: Country (Mandatory)
+      description: Mandatory context for aviation/airports rules.
+      placeholder: "e.g. Canada, United States"
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Proposed feature
+      description: What should the app do? Why is this helpful?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other ways this could be solved?
+    validations:
+      required: false

@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a bug in the SkyNoise tracking app.
+title: "[Bug]: "
+labels: ["bug"]
+assignees:
+  - michaelsanford
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the details below.
+        
+        **Security vulnerabilities:** Do *not* post public issues. Report them privately via our [Security Policy](https://github.com/michaelsanford/SkyNoise/security/policy).
+  - type: input
+    id: version
+    attributes:
+      label: App version / Commit SHA
+      description: Found at the bottom of the Settings panel.
+      placeholder: "e.g. v1.3.0 (commit: abc123f)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device & OS
+      description: The browser, phone/tablet, or computer you are using.
+      placeholder: "e.g. Chrome on Pixel 8 Pro, Safari on iPhone 15, Firefox on macOS"
+    validations:
+      required: true
+  - type: input
+    id: country
+    attributes:
+      label: Country
+      description: Where are you using this? (Mandatory for noise rules/timezone context).
+      placeholder: "e.g. Canada, United States, Germany"
+    validations:
+      required: true
+  - type: input
+    id: region
+    attributes:
+      label: Region / Province / State
+      description: Optional location context.
+      placeholder: "e.g. Quebec, California, Bavaria"
+    validations:
+      required: false
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: What is happening? What was expected to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I am using the latest commit / version of the app.
+          required: true
+        - label: I searched existing issues and did not find a duplicate.
+          required: true

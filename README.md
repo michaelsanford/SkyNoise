@@ -1,5 +1,14 @@
 # SkyNoise ✈️🔊
 
+[![CI Verification](https://github.com/michaelsanford/SkyNoise/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelsanford/SkyNoise/actions/workflows/ci.yml)
+[![Deploy to GitHub Pages](https://github.com/michaelsanford/SkyNoise/actions/workflows/deploy.yml/badge.svg)](https://github.com/michaelsanford/SkyNoise/actions/workflows/deploy.yml)
+![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript 6](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
+![Vite 8](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite&logoColor=white)
+![Vitest](https://img.shields.io/badge/Vitest-4.1-7E9B26?logo=vitest&logoColor=white)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-eigenvector-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/eigenvector)
+![License MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 SkyNoise is a serverless, privacy-first Single Page Application (SPA) Progressive Web App (PWA) designed to track overhead flights, assess their acoustic noise profiles, and log historical overhead passes in real-time. 
 
 Designed for residents living along landing and takeoff corridors, it answers two core questions:
