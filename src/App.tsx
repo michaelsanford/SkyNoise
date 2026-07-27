@@ -157,6 +157,9 @@ const STALE_TICK_MS = 5_000;
 /** Floor for the staleness threshold, regardless of poll interval. */
 const STALE_FLOOR_MS = 30_000;
 
+/** How often to ask the browser whether a new service worker has shipped. */
+const SW_UPDATE_CHECK_MS = 60 * 60 * 1000;
+
 /**
  * Maximum aircraft drawn on the radar at once.
  *
@@ -235,7 +238,43 @@ export default function App() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    /**
+     * Poll for a new build.
+     *
+     * `registerType: 'prompt'` plus the update banner is the right design, but the
+     * browser only re-checks the service worker on navigation. An installed PWA
+     * left open — which is exactly how this app is used, sitting on the radar for
+     * hours — would never learn a new version had shipped.
+     *
+     * Checks hourly, and again whenever the tab becomes visible, since returning
+     * to a backgrounded app is the moment an update is least disruptive.
+     */
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
+
+      const check = () => {
+        // Pointless while offline, and `update()` rejects rather than resolving.
+        if (navigator.onLine === false) return;
+        void registration.update().catch(() => {
+          // A failed check is not worth surfacing; the next one will retry.
+        });
+      };
+
+      const intervalId = window.setInterval(check, SW_UPDATE_CHECK_MS);
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') check();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
+      // useRegisterSW has no teardown hook, and this lives for the document's
+      // lifetime by design; released on unload.
+      window.addEventListener('unload', () => {
+        clearInterval(intervalId);
+        document.removeEventListener('visibilitychange', onVisible);
+      });
+    }
+  });
 
   const [activeTab, setActiveTab] = useState<TabId>('live');
 
