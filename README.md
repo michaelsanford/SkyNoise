@@ -78,11 +78,9 @@ npm run build
 The repository contains a Git Action workflow in [.github/workflows/deploy.yml](file:///P:/github.com/michaelsanford/yhu/.github/workflows/deploy.yml).
 
 ### How to Deploy:
-1. Push your code to the main branch:
-   ```bash
-   git push -u origin main
-   ```
-2. Navigate to your repository settings on GitHub.
-3. Click on the **Pages** tab.
-4. Under **Build and deployment** -> **Source**, select **GitHub Actions**.
-5. The workflow will automatically compile and host the app at `https://michaelsanford.github.io/SkyNoise/`.
+1. Create a pull request to merge your changes into the `main` branch.
+2. Once the PR is approved and merged, the deploy workflow will run automatically.
+3. Configure the repository settings on GitHub:
+   * Click on the **Pages** tab.
+   * Under **Build and deployment** -> **Source**, select **GitHub Actions**.
+4. The workflow will automatically compile and host the app at `https://michaelsanford.github.io/SkyNoise/`.
