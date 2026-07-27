@@ -3,6 +3,7 @@ import type { RawAircraft, AircraftUpdate, UserSettings, OverheadEvent } from '.
 import { getDistanceKm, getBearing, calculateCPA } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
 import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 
 declare const __COMMIT_SHA__: string;
 
@@ -149,6 +150,11 @@ interface ActivePass {
 }
 
 export default function App() {
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+
   const [activeTab, setActiveTab] = useState<'live' | 'history' | 'settings'>('live');
   
   // Settings State
@@ -619,6 +625,24 @@ export default function App() {
 
   return (
     <div>
+      {/* PWA Update Banner */}
+      {needRefresh && (
+        <div className="pwa-update-banner">
+          <div className="pwa-update-content">
+            <span className="pwa-update-icon">⚡</span>
+            <span>A new version of SkyNoise is available! Click reload to update.</span>
+          </div>
+          <div className="pwa-update-actions">
+            <button className="btn btn-update" onClick={() => updateServiceWorker(true)}>
+              Reload
+            </button>
+            <button className="btn btn-close" onClick={() => setNeedRefresh(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
       <header>
         <h1>SkyNoise</h1>
         <div className="subtitle">Privacy-First Overhead Flight Tracker</div>
@@ -1334,7 +1358,7 @@ export default function App() {
           </div>
           {/* App Version / Commit SHA Footer */}
           <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#64748b', fontSize: '0.75rem' }}>
-            SkyNoise Tracker v1.3.0 (commit: {__COMMIT_SHA__})
+            SkyNoise Tracker (commit: {__COMMIT_SHA__})
           </div>
         </div>
       )}

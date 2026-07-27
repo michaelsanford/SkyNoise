@@ -16,7 +16,7 @@ body:
     attributes:
       label: App version / Commit SHA
       description: Found at the bottom of the Settings panel.
-      placeholder: "e.g. v1.3.0 (commit: abc123f)"
+      placeholder: "e.g. commit: abc123f"
     validations:
       required: true
   - type: input
