@@ -969,16 +969,6 @@ input:checked + .slider:before {
   background-color: #0ea5e9;
 }
 
-.pwa-update-actions .btn-close {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #94a3b8;
-}
-
-.pwa-update-actions .btn-close:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: #f1f5f9;
-}
-
 /*
  * Aircraft glyph glow and heading rotation.
  *
