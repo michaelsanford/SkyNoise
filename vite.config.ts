@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite';
+// vitest/config re-exports Vite's defineConfig with the `test` key typed.
+// Importing from 'vite' instead makes `test:` a type error.
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
@@ -58,5 +60,31 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+  test: {
+    // App.tsx needs a DOM. The utils tests do not, but a single environment
+    // keeps the config honest — jsdom is a superset for our purposes.
+    environment: 'jsdom',
+    // globals: false — tests import { describe, it, expect } explicitly, which
+    // is the existing convention in geo.test.ts and noise.test.ts.
+    globals: false,
+    setupFiles: ['./src/test/setup.ts'],
+    // `virtual:pwa-register/react` is synthesised by vite-plugin-pwa at build
+    // time and cannot resolve under Vitest. Scoped to `test.alias` so the
+    // production build still gets the real implementation.
+    alias: {
+      'virtual:pwa-register/react': new URL(
+        './src/test/mocks/pwa-register.ts',
+        import.meta.url
+      ).pathname
+    },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'src/main.tsx']
+      // No thresholds yet: a number picked against a near-zero baseline either
+      // fails the build or means nothing. Measure first, then ratchet.
+    }
+  }
 });
