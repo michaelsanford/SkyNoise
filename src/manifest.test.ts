@@ -151,3 +151,29 @@ describe('service worker update checks', () => {
     expect(config).toMatch(/registerType: 'prompt'/);
   });
 });
+
+describe('manifest shortcuts', () => {
+  it('declares shortcuts for the linkable tabs', () => {
+    expect(config).toMatch(/shortcuts: \[/);
+  });
+
+  it('points every shortcut at a hash the app actually reads', () => {
+    // A shortcut targeting an unhandled hash silently opens the default tab,
+    // which is worse than having no shortcut at all.
+    const app = readFileSync('src/App.tsx', 'utf8');
+    const urls = [...config.matchAll(/url: '([^']+)'/g)].map(m => m[1]);
+    expect(urls.length).toBeGreaterThan(0);
+    for (const url of urls) {
+      const hash = url.split('#')[1];
+      expect(hash, `${url} has no hash fragment`).toBeTruthy();
+      // TAB_IDS is the validated set the router accepts.
+      expect(app, `no tab id matches #${hash}`).toMatch(new RegExp(`'${hash}'`));
+    }
+  });
+
+  it('scopes shortcut urls under the deployment base', () => {
+    for (const m of config.matchAll(/url: '([^']+)'/g)) {
+      expect(m[1]).toMatch(/^\/SkyNoise\//);
+    }
+  });
+});
