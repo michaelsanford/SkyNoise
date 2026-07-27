@@ -24,6 +24,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.svg', 'favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+      workbox: {
+        // Workbox's default globPatterns omit woff2. Without this the
+        // self-hosted font is not precached and falls back to a system font
+        // once offline.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+      },
       manifest: {
         name: 'SkyNoise Tracker',
         short_name: 'SkyNoise',
