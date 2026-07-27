@@ -69,6 +69,12 @@ const Icons = {
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   ),
+  Clock: (props: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
   Check: (props: IconProps) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#34d399' }} {...props}>
       <polyline points="20 6 9 17 4 12" />
@@ -143,6 +149,14 @@ export default function App() {
   const [gpsPermissionState, setGpsPermissionState] = useState<string>('unknown');
   const [currentPollIntervalMs, setCurrentPollIntervalMs] = useState<number>(() => (settings.pollIntervalSeconds || 10) * 1000);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+
+  // Reset GPS accuracy when manual control is used
+  useEffect(() => {
+    if (!settings.useGPS) {
+      setGpsAccuracy(null);
+    }
+  }, [settings.useGPS]);
 
   // Keep a mutable ref of the settings to avoid recreating interval timers when locations/parameters change
   const settingsRef = useRef(settings);
@@ -254,6 +268,7 @@ export default function App() {
         homeLat: parseFloat(latitude.toFixed(6)),
         homeLon: parseFloat(longitude.toFixed(6))
       }));
+      setGpsAccuracy(position.coords.accuracy);
       setGpsPermissionState('granted');
       setFetchError(null);
     };
@@ -607,15 +622,31 @@ export default function App() {
       </div>
 
       {/* Status Bar */}
-      <div className="status-row">
+      <div className="status-row" style={{ fontFamily: 'monospace', fontSize: '0.8rem', letterSpacing: '0.05em' }}>
         <span className={`status-indicator ${settings.homeLat !== null ? 'status-active' : 'status-offline'}`}></span>
         {settings.homeLat !== null ? (
-          <>
-            Scanning ({settings.homeLat}, {settings.homeLon}) 
-            {isPolling ? ' • Loading...' : lastFetchTime ? ` • Updated ${lastFetchTime.toLocaleTimeString()}` : ''}
-          </>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Icons.GPS style={{ width: '13px', height: '13px' }} />
+            <span>GPS:[{!settings.useGPS ? 'MANUAL' : gpsAccuracy === null ? '     ' : gpsAccuracy < 10 ? '█████' : gpsAccuracy < 30 ? '████ ' : gpsAccuracy < 100 ? '███  ' : gpsAccuracy < 500 ? '██   ' : '█    '}]</span>
+            <span>•</span>
+            {isPolling ? (
+              <span>Loading...</span>
+            ) : lastFetchTime ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Icons.Clock style={{ width: '13px', height: '13px' }} />
+                <span>{(() => {
+                  const hh = lastFetchTime.getHours().toString().padStart(2, '0');
+                  const mm = lastFetchTime.getMinutes().toString().padStart(2, '0');
+                  const ss = lastFetchTime.getSeconds().toString().padStart(2, '0');
+                  return `${hh}:${mm}:${ss}`;
+                })()}</span>
+              </span>
+            ) : (
+              <span>Pending</span>
+            )}
+          </span>
         ) : (
-          'Radar Offline (Needs Location)'
+          <span>Radar Offline</span>
         )}
       </div>
 
