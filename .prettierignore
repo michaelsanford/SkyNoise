@@ -12,3 +12,9 @@ public
 # SECURITY.md for no functional gain and bury their real history under a
 # whole-file reformat.
 *.md
+
+# Note on line endings: .prettierrc.json uses endOfLine "auto" rather than
+# "lf". core.autocrlf is true on Windows checkouts, so the working tree is CRLF
+# while .gitattributes (* text=auto) stores LF in the repository. Pinning "lf"
+# made prettier --check flag every file locally while passing in CI, which makes
+# the check useless to the person most likely to run it.

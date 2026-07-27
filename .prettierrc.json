@@ -6,11 +6,13 @@
   "printWidth": 100,
   "trailingComma": "none",
   "arrowParens": "avoid",
-  "endOfLine": "lf",
+  "endOfLine": "auto",
   "overrides": [
     {
       "files": ["*.yml", "*.yaml"],
-      "options": { "singleQuote": false }
+      "options": {
+        "singleQuote": false
+      }
     }
   ]
 }
