@@ -18,7 +18,7 @@ Before filing a bug, please search existing issues to see if it has already been
 Please include:
 *   A clear description of the bug and the expected behavior.
 *   Your device, browser, and OS version.
-*   Your country location (mandatory for location-specific noise calculation scopes).
+*   Your country or region, if relevant — noise rules and airport data vary by location. Optional.
 
 ### 2. Suggesting Enhancements
 Feature requests are welcomed! To suggest a feature, open an issue using our [Feature Request Form](https://github.com/michaelsanford/SkyNoise/issues/new/choose).

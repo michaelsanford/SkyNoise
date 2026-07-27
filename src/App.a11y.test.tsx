@@ -228,3 +228,98 @@ describe('destructive action uses in-app confirmation', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Cleared 1 log entries/i);
   });
 });
+
+/**
+ * Right to erasure.
+ *
+ * PRIVACY.md invokes GDPR Art. 17 and the in-app card claimed erasure was
+ * "automated by clicking Clear Log". It was not: Clear Log only emptied the
+ * history, so `skynoise_settings` — which holds homeLat/homeLon — survived. The
+ * user's stored location outlived the erasure that claimed to remove it.
+ */
+describe('erase all local data', () => {
+  const CONFIGURED = JSON.stringify({
+    homeLat: 45.5175,
+    homeLon: -73.4169,
+    useGPS: false,
+    detectionRadiusKm: 40
+  });
+
+  beforeEach(() => {
+    localStorage.setItem(SETTINGS_KEY, CONFIGURED);
+    localStorage.setItem(
+      'skynoise_history',
+      JSON.stringify([
+        {
+          hex: 'a1b2c3',
+          flight: 'ACA123',
+          type: 'A320',
+          desc: 'Airbus A320',
+          registration: 'C-FABC',
+          timestamp: 1_700_000_000_000,
+          minDistanceKm: 0.8,
+          altitudeFt: 2400,
+          trajectory: 'landing',
+          noiseLevel: 'high'
+        }
+      ])
+    );
+  });
+
+  it('clearing the log alone leaves the stored location behind', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Who Was That/ }));
+    await user.click(screen.getByRole('button', { name: /Clear Log/ }));
+    await user.click(screen.getByRole('button', { name: /^Erase$/ }));
+
+    // Documents the limit rather than pretending otherwise: Clear Log is a log
+    // action, and the coordinates are still on disk afterwards.
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
+    expect(stored.homeLat).toBe(45.5175);
+  });
+
+  it('erases both keys and returns to first-run state', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+
+    await user.click(screen.getByRole('button', { name: /Erase all local data/i }));
+    await user.click(screen.getByRole('button', { name: /Erase everything/i }));
+
+    // Both keys are removed, but the persistence effects immediately re-write
+    // *empty* defaults as state resets. So the assertion is about personal data
+    // not surviving, which is what erasure means — not about key absence.
+    expect(JSON.parse(localStorage.getItem('skynoise_history') ?? '[]')).toEqual([]);
+
+    const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+    expect(parsed.homeLat ?? null).toBeNull();
+    expect(parsed.homeLon ?? null).toBeNull();
+    expect(parsed.airportCode ?? '').toBe('');
+    // Customised threshold is back to default, i.e. genuinely first-run state.
+    expect(parsed.detectionRadiusKm ?? 15).toBe(15);
+
+    await user.click(screen.getByRole('tab', { name: /Live Tracker/ }));
+    expect(screen.getByText('Welcome to SkyNoise')).toBeInTheDocument();
+  });
+
+  it('announces the erasure', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+    await user.click(screen.getByRole('button', { name: /Erase all local data/i }));
+    await user.click(screen.getByRole('button', { name: /Erase everything/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(/All local data erased/i);
+  });
+
+  it('can be cancelled', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+    await user.click(screen.getByRole('button', { name: /Erase all local data/i }));
+    await user.click(screen.getByRole('button', { name: /Cancel/ }));
+
+    const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
+    expect(stored.homeLat).toBe(45.5175);
+  });
+});

@@ -30,11 +30,9 @@ body:
   - type: input
     id: country
     attributes:
-      label: Country
-      description: Where are you using this? (Mandatory for noise rules/timezone context).
+      label: Country or region (optional)
+      description: Only if relevant to the bug — noise rules and airport data vary by region. Leave blank if you would rather not say.
       placeholder: "e.g. Canada, United States, Germany"
-    validations:
-      required: true
   - type: input
     id: region
     attributes:
