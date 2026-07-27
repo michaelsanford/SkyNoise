@@ -142,6 +142,14 @@ export default function App() {
   const [currentPollIntervalMs, setCurrentPollIntervalMs] = useState<number>(() => (settings.pollIntervalSeconds || 10) * 1000);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
 
+  // Keep a mutable ref of the settings to avoid recreating interval timers when locations/parameters change
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  const hasCoordinates = settings.homeLat !== null && settings.homeLon !== null;
+
   // Synchronize dynamic polling rate when settings frequency changes
   useEffect(() => {
     setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
@@ -279,7 +287,8 @@ export default function App() {
 
   // Aircraft tracking loop
   useEffect(() => {
-    if (settings.homeLat === null || settings.homeLon === null) {
+    const currentSettings = settingsRef.current;
+    if (currentSettings.homeLat === null || currentSettings.homeLon === null) {
       setAircraft([]);
       return;
     }
@@ -289,14 +298,15 @@ export default function App() {
 
     const fetchAircraftData = async () => {
       if (isFetching) return;
-      if (settings.homeLat === null || settings.homeLon === null) return;
+      const snapSettings = settingsRef.current;
+      if (snapSettings.homeLat === null || snapSettings.homeLon === null) return;
       isFetching = true;
       setIsPolling(true);
 
-      const lat = settings.homeLat;
-      const lon = settings.homeLon;
+      const lat = snapSettings.homeLat;
+      const lon = snapSettings.homeLon;
       // Radius in Nautical Miles (API expects NM). 1 km = 0.539957 NM.
-      const radiusNm = Math.max(1, Math.ceil(settings.detectionRadiusKm * 0.539957));
+      const radiusNm = Math.max(1, Math.ceil(snapSettings.detectionRadiusKm * 0.539957));
 
       try {
         const url = `https://api.airplanes.live/v2/point/${lat}/${lon}/${radiusNm}`;
@@ -316,7 +326,7 @@ export default function App() {
         setLastFetchTime(new Date());
         setFetchError(null);
         // Reset backoff on successful fetch
-        setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
+        setCurrentPollIntervalMs(snapSettings.pollIntervalSeconds * 1000);
 
         // Process aircraft updates
         const updatedList: AircraftUpdate[] = rawList
@@ -354,7 +364,7 @@ export default function App() {
             } as AircraftUpdate;
           })
           // Filter to only include flights below maxAltitudeFt
-          .filter(ac => ac.altitudeFt <= settings.maxAltitudeFt && ac.lat !== undefined && ac.lon !== undefined);
+          .filter(ac => ac.altitudeFt <= snapSettings.maxAltitudeFt && ac.lat !== undefined && ac.lon !== undefined);
 
         setAircraft(updatedList);
         processPasses(updatedList);
@@ -372,12 +382,13 @@ export default function App() {
 
     // Helper to evaluate and save overhead passes
     const processPasses = (currentAircraft: AircraftUpdate[]) => {
+      const snapSettings = settingsRef.current;
       const now = Date.now();
       const currentHexes = new Set(currentAircraft.map(ac => ac.hex));
       
       // Update active passes and log new entry if an aircraft goes inside overhead radius
       currentAircraft.forEach((ac) => {
-        if (ac.distanceKm <= settings.overheadRadiusKm) {
+        if (ac.distanceKm <= snapSettings.overheadRadiusKm) {
           const existing = activePassesRef.current[ac.hex];
           
           if (!existing) {
@@ -410,7 +421,7 @@ export default function App() {
       Object.keys(activePassesRef.current).forEach((hex) => {
         const pass = activePassesRef.current[hex];
         const currentMatch = currentAircraft.find(ac => ac.hex === hex);
-        const isOutsideNow = currentMatch && currentMatch.distanceKm > settings.overheadRadiusKm;
+        const isOutsideNow = currentMatch && currentMatch.distanceKm > snapSettings.overheadRadiusKm;
         const hasDisappeared = !currentHexes.has(hex) && (now - pass.lastSeen > 35000); // 35 seconds buffer
 
         if (isOutsideNow || hasDisappeared) {
@@ -452,7 +463,7 @@ export default function App() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [settings.homeLat, settings.homeLon, settings.detectionRadiusKm, settings.overheadRadiusKm, settings.maxAltitudeFt, currentPollIntervalMs]);
+  }, [currentPollIntervalMs, hasCoordinates]);
 
   // Clean active passes on component unmount
   useEffect(() => {
@@ -1048,15 +1059,25 @@ export default function App() {
             </p>
             <div className="form-group">
               <label>Fetch Interval: {settings.pollIntervalSeconds} seconds</label>
-              <select 
-                value={settings.pollIntervalSeconds}
-                onChange={(e) => setSettings(prev => ({ ...prev, pollIntervalSeconds: parseInt(e.target.value) }))}
-              >
-                <option value="5">Fast (5s) - Active Tracking</option>
-                <option value="10">Standard (10s) - Balanced</option>
-                <option value="20">Relaxed (20s) - Low Resource</option>
-                <option value="30">Eco (30s) - Battery Saver</option>
-              </select>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                {[5, 10, 20, 30, 60].map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    className={`btn ${settings.pollIntervalSeconds === sec ? '' : 'btn-secondary'}`}
+                    style={{
+                      flex: '1 1 auto',
+                      padding: '0.5rem 0.25rem',
+                      fontSize: '0.85rem',
+                      minWidth: '55px',
+                      textAlign: 'center',
+                    }}
+                    onClick={() => setSettings(prev => ({ ...prev, pollIntervalSeconds: sec }))}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
             </div>
             {currentPollIntervalMs > settings.pollIntervalSeconds * 1000 && (
               <div style={{ color: '#fbbf24', fontSize: '0.85rem', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.5rem' }}>
