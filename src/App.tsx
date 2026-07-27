@@ -1665,7 +1665,7 @@ export default function App() {
                           return (
                             <div
                               key={ac.hex}
-                              className={`radar-aircraft radar-aircraft--${ac.noiseLevel}`}
+                              className="radar-aircraft"
                               role="img"
                               aria-label={description}
                               title={description}

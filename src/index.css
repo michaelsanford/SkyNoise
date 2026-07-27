@@ -1143,34 +1143,3 @@ h1 {
   white-space: nowrap;
   border: 0;
 }
-
-/*
- * Non-colour cue for noise level on the radar.
- *
- * The glyph colour alone carried this, so it vanished under red/green colour
- * deficiency and in forced-colors mode. A ring whose thickness and style differ
- * per level means the distinction survives without colour: solid double ring for
- * high, solid single for medium, dotted for low.
- */
-.radar-aircraft::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.radar-aircraft--high::before {
-  border: 2px double currentColor;
-  opacity: 0.9;
-}
-
-.radar-aircraft--medium::before {
-  border: 1px solid currentColor;
-  opacity: 0.75;
-}
-
-.radar-aircraft--low::before {
-  border: 1px dotted currentColor;
-  opacity: 0.6;
-}
