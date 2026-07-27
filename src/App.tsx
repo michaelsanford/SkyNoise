@@ -3,6 +3,13 @@ import type { RawAircraft, AircraftUpdate, UserSettings, OverheadEvent } from '.
 import { getDistanceKm, getBearing, calculateCPA } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
 import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
+import {
+  isValidCoordinate,
+  loadHistory,
+  loadSettings,
+  saveHistory,
+  saveSettings
+} from './utils/storage';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 declare const __COMMIT_SHA__: string;
@@ -120,21 +127,6 @@ const Icons = {
   )
 };
 
-const DEFAULT_SETTINGS: UserSettings = {
-  homeLat: null,
-  homeLon: null,
-  airportLat: null,
-  airportLon: null,
-  airportCode: '',
-  maxAltitudeFt: 10000,
-  detectionRadiusKm: 15,
-  overheadRadiusKm: 1.5,
-  useGPS: true,
-  pollIntervalSeconds: 10,
-  radarOrientation: 'north-up',
-  showAirportsOnRadar: true
-};
-
 // Internal interface for tracking active passes over the house
 interface ActivePass {
   hex: string;
@@ -157,27 +149,13 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<'live' | 'history' | 'settings'>('live');
   
-  // Settings State
-  const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('skynoise_settings');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Force migration for newer properties
-        return { ...DEFAULT_SETTINGS, ...parsed };
-      } catch (e) {
-        return DEFAULT_SETTINGS;
-      }
-    }
-    return DEFAULT_SETTINGS;
-  });
+  // Settings State. Validated field-by-field against DEFAULT_SETTINGS, which
+  // also performs the migration for properties added since the value was saved.
+  const [settings, setSettings] = useState<UserSettings>(loadSettings);
 
   // Aircraft & History State
   const [aircraft, setAircraft] = useState<AircraftUpdate[]>([]);
-  const [history, setHistory] = useState<OverheadEvent[]>(() => {
-    const saved = localStorage.getItem('skynoise_history');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [history, setHistory] = useState<OverheadEvent[]>(loadHistory);
   
   // App system states
   const [isPolling, setIsPolling] = useState<boolean>(false);
@@ -261,7 +239,7 @@ export default function App() {
 
   // Sync settings to localStorage
   useEffect(() => {
-    localStorage.setItem('skynoise_settings', JSON.stringify(settings));
+    saveSettings(settings);
     if (settings.homeLat !== null && settings.homeLon !== null) {
       setTempLat(settings.homeLat.toString());
       setTempLon(settings.homeLon.toString());
@@ -273,7 +251,7 @@ export default function App() {
 
   // Sync history to localStorage
   useEffect(() => {
-    localStorage.setItem('skynoise_history', JSON.stringify(history));
+    saveHistory(history);
   }, [history]);
 
   // Monitor Geolocation permissions if browser supports API query
@@ -353,12 +331,18 @@ export default function App() {
     const fetchAircraftData = async () => {
       if (isFetching) return;
       const snapSettings = settingsRef.current;
-      if (snapSettings.homeLat === null || snapSettings.homeLon === null) return;
+      // Guard the pair before it reaches the request path. Without this, a
+      // non-numeric stored coordinate builds a garbage URL and the interval
+      // hammers an API that is already rate-limiting us.
+      if (!isValidCoordinate(snapSettings.homeLat, snapSettings.homeLon)) {
+        setFetchError('Stored coordinates are invalid. Please set your location again in Settings.');
+        return;
+      }
       isFetching = true;
       setIsPolling(true);
 
-      const lat = snapSettings.homeLat;
-      const lon = snapSettings.homeLon;
+      const lat = snapSettings.homeLat as number;
+      const lon = snapSettings.homeLon as number;
       // Radius in Nautical Miles (API expects NM). 1 km = 0.539957 NM.
       const radiusNm = Math.max(1, Math.ceil(snapSettings.detectionRadiusKm * 0.539957));
 
