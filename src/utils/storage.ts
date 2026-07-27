@@ -210,3 +210,20 @@ export function saveSettings(settings: UserSettings): boolean {
 export function saveHistory(history: OverheadEvent[]): boolean {
   return writeKey(HISTORY_KEY, history);
 }
+
+/**
+ * Remove every key this app owns.
+ *
+ * Backs the right-to-erasure claim in PRIVACY.md. Clearing the history alone is
+ * not erasure: the settings key holds `homeLat`/`homeLon`, so the user's location
+ * would survive a "clear" that claimed to remove everything.
+ */
+export function eraseAllStoredData(): boolean {
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+    localStorage.removeItem(HISTORY_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}

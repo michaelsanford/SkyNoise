@@ -36,10 +36,11 @@ Designed for residents living along landing and takeoff corridors, it answers tw
 ## 🔒 Privacy & Regulatory Compliance (GDPR, PIPEDA, Quebec Loi 25)
 
 SkyNoise is entirely **client-side** and runs serverless:
-*   **We Store Nothing**: Your coordinates, local configuration parameters, and overhead logs reside strictly inside your local browser cache (`localStorage`) and are never sent to any central database.
-*   **Content Security Policy**: Restricts external connections strictly to the open CORS-enabled `https://api.airplanes.live` endpoint.
-*   **Right to Be Forgotten**: Erasing your logs and configuration is instant and can be performed using the "Clear Log" button in the history tab.
-*   Detailed regulatory alignment is documented in [PRIVACY.md](file:///P:/github.com/michaelsanford/yhu/PRIVACY.md).
+*   **No servers, no accounts, no tracking**: Your coordinates, settings and overhead log live only in this browser's `localStorage`. There is no backend, no cookie, no analytics and no telemetry.
+*   **One third party, disclosed**: Each poll sends your latitude, longitude and radius to `api.airplanes.live` so it can return nearby aircraft. No identifier is attached, but that service does receive your approximate location. This is inherent to the app's purpose, not incidental.
+*   **Content Security Policy**: Network access is restricted to `'self'` and that one endpoint. Fonts are self-hosted so loading the page contacts no third party at all.
+*   **Right to Be Forgotten**: Settings → Privacy → **"Erase all local data"** clears your saved location, all settings and the whole log. ("Clear Log" on the history tab is narrower by design — log only.)
+*   Detailed regulatory alignment is documented in [PRIVACY.md](PRIVACY.md).
 
 ---
 
@@ -75,7 +76,7 @@ npm run build
 
 ## 📦 Continuous Deployment (GitHub Pages)
 
-The repository contains a Git Action workflow in [.github/workflows/deploy.yml](file:///P:/github.com/michaelsanford/yhu/.github/workflows/deploy.yml).
+The repository contains a Git Action workflow in [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
 
 ### How to Deploy:
 1. Create a pull request to merge your changes into the `main` branch.

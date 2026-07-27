@@ -36,15 +36,37 @@ There are no guaranteed fix timelines. Severe, easily exploitable vulnerabilitie
 This policy covers **the SkyNoise application code** in this repository — a client-side React SPA PWA.
 
 Specifically, in-scope reports include:
-- **Local credential/settings handling** — paths exposing local coordinate configs or logs in plain text or unauthorized browser variables.
-- **Content Security Policy (CSP)** — any bypasses that allow unauthorized code execution or network requests outside `https://api.airplanes.live`.
-- **PWA Service Worker** — caching mechanisms (`sw.js`) containing security vulnerabilities or serving poisoned assets.
+- **Local settings handling** — paths exposing the stored coordinate configuration or overhead log to another origin, or leaking either outside `localStorage`.
+- **Content Security Policy (CSP)** — any bypass allowing code execution, or a network request to an origin other than `'self'` and `https://api.airplanes.live`.
+- **PWA Service Worker** — flaws in the Workbox precache (`sw.js`) that would let it serve poisoned or stale-but-trusted assets.
+
+### Known platform limitations
+
+These are **acknowledged and unfixable within GitHub Pages**, so they are not
+vulnerabilities in this codebase. Reports describing them are welcome but will be
+closed with a pointer here.
+
+GitHub Pages cannot serve custom response headers, and there is no `_headers`
+equivalent. Consequently the following cannot be set at all:
+
+| Header | Effect of its absence |
+|---|---|
+| `X-Frame-Options` / CSP `frame-ancestors` | The site can be framed by any origin. `frame-ancestors` is additionally ignored inside a `<meta>` tag by spec, so the existing meta CSP cannot express it. Mitigated in-page by a scripted frame check, which is defence-in-depth rather than an equivalent. |
+| `Strict-Transport-Security` | Covered in practice by the `github.io` HSTS preload. |
+| `X-Content-Type-Options` | No sniffing-sensitive user-supplied content is served. |
+| `Referrer-Policy` | Substituted by `<meta name="referrer" content="no-referrer">`. |
+| `Permissions-Policy` | Cannot restrict features at the document level. |
+
+Fixing these properly requires fronting the site with a CDN that can set headers.
 
 ### Out of scope
 
-SkyNoise runs entirely in your web browser and communicates with third-party public API endpoints. The following are **out of scope**:
+SkyNoise runs entirely in your web browser and communicates with a third-party public
+API. The following are **out of scope**:
 - Vulnerabilities in the **Airplanes.live** API service, its servers, or its data feed.
-- Vulnerabilities in your operating system's location service, browser sandbox, or GPS coordinate sensors.
+- Vulnerabilities in your operating system's location service, browser sandbox, or GPS sensors.
+- The fact that your coordinates are sent to `api.airplanes.live`. This is documented,
+  intentional and necessary for the app to function — see [PRIVACY.md](PRIVACY.md).
 
 ## Bug Bounty
 

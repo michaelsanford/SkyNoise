@@ -1,34 +1,89 @@
-# Privacy Policy - SkyNoise Tracker
+# Privacy Policy — SkyNoise Tracker
 
 **Last Updated:** July 2026
 
-## 1. Generic Statement: We Store Nothing
-The SkyNoise Tracker application is designed to be entirely client-side and serverless. **We do not collect, store, share, compile, or transmit any of your personal data, logs, identifiers, cookies, or location coordinates.** All data processing occurs locally in your device's web browser, and any preferences you configure are stored solely on your machine.
+## 1. What this app does and does not do
+
+SkyNoise is entirely client-side. There is no backend, no account, no cookie, no
+analytics and no telemetry. **We operate no servers and collect nothing about you.**
+Your coordinates, settings and overhead-flight log exist only in your own browser's
+`localStorage`.
+
+**One thing does leave your device.** To find aircraft near you, your browser sends
+your latitude, longitude and search radius directly to
+[`api.airplanes.live`](https://airplanes.live) — a third-party public flight feed —
+once per poll interval, for as long as tracking is running. No identifier, token or
+profile accompanies those requests, but that service does receive your approximate
+location. This is unavoidable for the app to function: the query *is* "what is flying
+near this point".
+
+If that trade is not acceptable to you, do not enter a location. The app transmits
+nothing until you provide one.
+
+### Data controller
+
+Michael Sanford — <michaelsanford@users.noreply.github.com>.
+Questions or concerns: <https://github.com/michaelsanford/SkyNoise/issues>.
 
 ---
 
-## 2. Regulatory Compliance
+## 2. Regulatory position
 
 ### Loi 25 (Quebec, Canada)
-Under Quebec's Act respecting the protection of personal information in the private sector (Loi 25), SkyNoise is compliant by design:
-*   **No Collection:** Your precise geolocation coordinates (from your GPS sensor) are read directly in the browser and are never transmitted to our servers (we do not operate any backend server).
-*   **Local Storage Control:** You have full authority to delete your configuration settings and search history at any time using the "Clear Log" button in the app or by clearing your browser cache.
+
+- **Consent is explicit and revocable.** Geolocation is requested only when you press
+  "Use My GPS Location" or enable the GPS switch, and your browser can revoke it at any
+  time.
+- **No collection by us.** Coordinates are read in the browser and used to compute
+  distance and bearing locally. We receive nothing, because no server of ours exists to
+  receive it.
+- **Third-party disclosure.** Section 1 and section 3 name the one external recipient.
 
 ### PIPEDA (Canada)
-In accordance with Canada's Personal Information Protection and Electronic Documents Act (PIPEDA):
-*   **Consent:** GPS coordinate access is only requested upon your explicit action when clicking "Use My GPS Location" or toggling the GPS switch. You can revoke this access at any time via your browser settings.
-*   **Limiting Use:** Your location data is solely used in real-time to compute the distance and relative bearing to local flights for noise tracking purposes and is discarded immediately after each poll.
+
+- **Limited use.** Your location is used only to compute distance, bearing and closest
+  approach for nearby flights, and to scope the API query to your area. No profile is
+  built.
+- **Retention.** Your coordinates *are* retained locally, in `localStorage`, so the app
+  remembers your location between sessions. They are not retained by us, and API
+  responses are not persisted beyond the current radar view and the overhead log.
 
 ### GDPR (European Union)
-Pursuant to the General Data Protection Regulation (GDPR):
-*   **Privacy by Design & Default:** The app is configured to poll nothing and collect nothing by default.
-*   **No Central Processing:** No data is sent to a central repository. Coordinates are processed locally and only used to query the open-source, public flight feed at `https://api.airplanes.live`.
-*   **Right to Erasure (Right to be Forgotten):** Because all history and setting logs reside in your browser's local storage (`localStorage`), you can erase all data instantaneously by clicking "Clear Log" or clearing site data in your browser.
+
+- **Privacy by default.** With no location configured, the app polls nothing and
+  transmits nothing.
+- **Local processing.** All distance, noise and trajectory computation happens on your
+  device.
+- **Right to erasure (Art. 17).** Settings → Privacy → **"Erase all local data"** removes
+  your saved location, every setting and the entire overhead log, returning the app to
+  first-run state.
+
+  Note that **"Clear Log"** on the history tab is deliberately narrower: it erases the
+  log only and leaves your location configured. Use "Erase all local data" for full
+  erasure. Clearing site data in your browser has the same effect.
 
 ---
 
-## 3. External API Queries
-To show you aircraft in real-time, your browser makes direct HTTPS requests to the public, open-source endpoint hosted by:
-*   **Airplanes.live** (`https://api.airplanes.live`)
+## 3. External requests
 
-These queries send the coordinates of the center point (latitude/longitude) and a detection radius (in nautical miles) so the API can filter the surrounding airspace telemetry. These requests are governed by the privacy and data policies of Airplanes.live. No identifying tokens or personal profiles are attached to these network queries.
+Your browser makes direct HTTPS requests to exactly one external origin:
+
+| Origin | Purpose | What it receives |
+|---|---|---|
+| `https://api.airplanes.live` | Nearby aircraft telemetry | Latitude, longitude, radius in nautical miles |
+
+These requests are governed by Airplanes.live's own policies. The app's
+Content-Security-Policy restricts network access to this origin plus `'self'`, so the
+page cannot silently begin contacting anything else. Web fonts are self-hosted
+specifically so that loading the page contacts no third party at all.
+
+---
+
+## 4. What is stored on your device
+
+| Key | Contents |
+|---|---|
+| `skynoise_settings` | Coordinates, airport code, thresholds, poll interval, radar orientation |
+| `skynoise_history` | Up to 100 overhead passes: callsign, type, registration, time, closest distance, altitude |
+
+Nothing else is written, and neither key ever leaves your browser.

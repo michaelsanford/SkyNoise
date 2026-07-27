@@ -12,11 +12,9 @@ body:
   - type: input
     id: country
     attributes:
-      label: Country (Mandatory)
-      description: Mandatory context for aviation/airports rules.
+      label: Country or region (optional)
+      description: Only if relevant to the request — aviation and airport rules vary by region. Leave blank if you would rather not say.
       placeholder: "e.g. Canada, United States"
-    validations:
-      required: true
   - type: textarea
     id: idea
     attributes:

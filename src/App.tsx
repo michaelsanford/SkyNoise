@@ -4,6 +4,8 @@ import { getDistanceKm, getBearing, calculateCPA, angularDeltaDeg } from './util
 import { determineTrajectory, classifyNoise } from './utils/noise';
 import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
 import {
+  DEFAULT_SETTINGS,
+  eraseAllStoredData,
   isValidCoordinate,
   loadHistory,
   loadSettings,
@@ -215,6 +217,8 @@ export default function App() {
 
   // Two-step confirmation for the destructive log wipe.
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingErase, setConfirmingErase] = useState(false);
+
 
   /**
    * Message for the aria-live region.
@@ -225,6 +229,29 @@ export default function App() {
    */
   const [liveMessage, setLiveMessage] = useState('');
   const announce = useCallback((message: string) => setLiveMessage(message), []);
+
+  /**
+   * Erase every key the app owns and return to first-run state.
+   *
+   * PRIVACY.md claims a right to erasure, and the in-app card claimed it was
+   * "automated by clicking Clear Log". It was not: Clear Log only emptied the
+   * history, so skynoise_settings -- which holds homeLat/homeLon -- survived.
+   * The stored location outlived the erasure that claimed to remove it.
+   */
+  const eraseAllData = useCallback(() => {
+    eraseAllStoredData();
+    setSettings({ ...DEFAULT_SETTINGS });
+    setHistory([]);
+    setAircraft([]);
+    activePassesRef.current = {};
+    setTempLat('');
+    setTempLon('');
+    setTempAirport('');
+    setAirportResolutionMsg('');
+    setFetchError(null);
+    setConfirmingErase(false);
+    announce('All local data erased. Settings and history reset.');
+  }, [announce]);
 
   const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     const deltas: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
@@ -1639,15 +1666,55 @@ export default function App() {
           {/* Compliance & Privacy Disclosure Card */}
           <div className="privacy-box">
             <div className="privacy-title" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.5rem' }}>
-              <Icons.Shield /> Privacy Disclosure: We Store Nothing
+              <Icons.Shield aria-hidden="true" /> Privacy: no accounts, no servers, no tracking
             </div>
+            {/* Reworded to match what the code does. The previous text said
+                coordinates are "never sent to or cached on any server", which was
+                true of storage but not of transmission: every poll puts the
+                coordinates in the request path to a third-party API. */}
             <p style={{ margin: '0 0 0.5rem 0' }}>
-              <strong>All processing is 100% local.</strong> Your device GPS coordinates, local search queries, and logged overhead flight history are stored strictly inside your browser's local cache (<code>localStorage</code>) and never sent to or cached on any server.
+              <strong>We operate no servers and collect nothing.</strong> Your coordinates, settings and overhead log live only in this browser (<code>localStorage</code>). There is no account, no analytics and no telemetry.
+            </p>
+            <p style={{ margin: '0 0 0.5rem 0' }}>
+              <strong>One thing does leave your device:</strong> to find nearby aircraft, each poll sends your latitude, longitude and search radius to <code>api.airplanes.live</code>, a third-party public flight feed. No identifier is attached, but that service does receive your approximate location for as long as tracking is on.
             </p>
             <div style={{ display: 'grid', gap: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-              <div><strong style={{ color: '#38bdf8' }}>Loi 25 (Quebec):</strong> Consent is dynamic. No remote collection of location metrics. You have custody to wipe your browser logs at any time.</div>
-              <div><strong style={{ color: '#38bdf8' }}>PIPEDA (Canada):</strong> Coordinates are only queried in real-time to compute flight distances locally and discarded immediately. No user profiles are created.</div>
-              <div><strong style={{ color: '#38bdf8' }}>GDPR (EU):</strong> Privacy by design. Direct device queries to open source feeds. Right to be forgotten is automated by clicking "Clear Log" below.</div>
+              <div><strong style={{ color: '#38bdf8' }}>Loi 25 (Quebec):</strong> Location access is requested only when you ask for it, and can be revoked in your browser at any time.</div>
+              <div><strong style={{ color: '#38bdf8' }}>PIPEDA (Canada):</strong> Coordinates are used only to compute distance and bearing to nearby flights. No profile is built, and no identifier accompanies the API request.</div>
+              <div><strong style={{ color: '#38bdf8' }}>GDPR (EU):</strong> Nothing is collected until you provide a location, and the button below erases everything this app has stored.</div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.75rem', marginTop: '0.75rem' }}>
+              {!confirmingErase ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem' }}
+                  onClick={() => setConfirmingErase(true)}
+                >
+                  <Icons.Trash aria-hidden="true" /> Erase all local data
+                </button>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.8rem' }}>Erase saved location, settings and log?</span>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: '0.8rem', backgroundColor: '#f43f5e', color: '#ffffff' }}
+                    onClick={eraseAllData}
+                  >
+                    Erase everything
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.8rem' }}
+                    onClick={() => setConfirmingErase(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           {/* App Version / Commit SHA Footer */}
