@@ -889,7 +889,9 @@ export default function App() {
               {/* Loudest aircraft warning banner */}
               {loudestFlight ? (
                 <div className="noise-alert-banner">
-                  <Icons.Volume2 className="status-offline" style={{ animation: 'beacon 1s infinite' }} />
+                  {/* Animation lives in CSS, not an inline style: an inline
+                      animation cannot be switched off by prefers-reduced-motion. */}
+                  <Icons.Volume2 className="status-offline alert-beacon" />
                   <div className="noise-alert-content">
                     <div className="noise-alert-title">Flight Overhead Now</div>
                     <div className="noise-alert-desc">
@@ -918,9 +920,11 @@ export default function App() {
                     <div className="radar-sweep"></div>
                     <div className="radar-grid"></div>
                     <div className="radar-grid-v"></div>
-                    <div className="radar-circle" style={{ width: '85px', height: '85px' }}></div>
-                    <div className="radar-circle" style={{ width: '170px', height: '170px' }}></div>
-                    <div className="radar-circle" style={{ width: '255px', height: '255px' }}></div>
+                    {/* Range rings at 25/50/75% of the detection radius.
+                        Percentages, not px, so they track a responsive radar. */}
+                    <div className="radar-circle" style={{ width: '25%', height: '25%' }}></div>
+                    <div className="radar-circle" style={{ width: '50%', height: '50%' }}></div>
+                    <div className="radar-circle" style={{ width: '75%', height: '75%' }}></div>
                     
                     {/* Compass Cardinals */}
                     <div 
@@ -984,17 +988,22 @@ export default function App() {
                           )}
                           
                           {/* Stylized rotated airplane icon */}
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="16" 
-                            height="16" 
-                            viewBox="0 0 24 24" 
+                          {/* The glow and the transition live in CSS. Inline they
+                              were rebuilt on every render, so the changing
+                              `filter` forced a repaint in lockstep with the
+                              `transform` transition it was fighting.
+                              currentColor lets one static rule serve all three
+                              noise colours. */}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
                             fill="currentColor"
+                            className="radar-aircraft-icon"
                             style={{
                               transform: `rotate(${heading}deg)`,
-                              color: activeColor,
-                              filter: `drop-shadow(0 0 3px ${activeColor})`,
-                              transition: 'transform 0.5s ease'
+                              color: activeColor
                             }}
                           >
                             <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
@@ -1041,7 +1050,7 @@ export default function App() {
                                transition: 'transform 0.1s ease-out'
                              }}
                            >
-                             <Icons.Tower style={{ color: '#38bdf8', opacity: 0.7, filter: 'drop-shadow(0 0 2px #38bdf8)' }} />
+                             <Icons.Tower className="radar-airport-icon" />
                              <div className="radar-airport-tag">
                                {ap.iata || ap.code}
                              </div>

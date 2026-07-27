@@ -48,7 +48,7 @@
 body {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(circle at top, #1e293b 0%, #0f172a 50%, #090d16 100%);
   background-attachment: fixed;
 }
@@ -110,6 +110,7 @@ h1 {
 
 .tab {
   flex: 1;
+  min-height: 44px;
   background: transparent;
   border: none;
   color: #94a3b8;
@@ -118,7 +119,7 @@ h1 {
   font-size: 0.95rem;
   border-radius: 0.5rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   font-family: inherit;
 }
 
@@ -134,12 +135,30 @@ h1 {
   flex-direction: column;
   align-items: center;
   margin: 1.5rem 0;
+  /*
+   * The radar is the only subtree that can produce horizontal overflow: it is
+   * the only fixed-width layout box, and every negative offset (the four
+   * cardinals at -11px) and every `white-space: nowrap` in this stylesheet
+   * lives inside it. An aircraft at maximum range due east carries its callsign
+   * tag half outside the circle, so the widest tag sets the true extent.
+   *
+   * `clip`, not `hidden`: clip does not create a scroll container, so it
+   * cannot break scroll anchoring or a future `position: sticky`. This makes
+   * the overflow structurally impossible rather than merely unlikely.
+   */
+  overflow-x: clip;
 }
 
 .radar-container {
   position: relative;
-  width: 340px;
-  height: 340px;
+  /*
+   * Reserve 3rem of gutter so the cardinals at -11px stay visible rather than
+   * being clipped by the rule above, and so the circle never exceeds the content
+   * box on a narrow phone (a 320px viewport leaves 288px, which the old fixed
+   * 342px border-box overflowed on its own).
+   */
+  width: min(340px, 100% - 3rem);
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 1px solid rgba(56, 189, 248, 0.2);
   background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%);
@@ -444,7 +463,7 @@ input, select {
   font-family: inherit;
   font-size: 0.95rem;
   box-sizing: border-box;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input:focus, select:focus {
@@ -459,6 +478,10 @@ input:focus, select:focus {
 }
 
 button.btn {
+  /* 44px minimum touch target. The compact variants (Clear Log ~29px, the
+     poll-interval buttons ~33px, the banner buttons ~29px) override only
+     padding, so min-height reaches all of them. */
+  min-height: 44px;
   background: #38bdf8;
   color: #0f172a;
   border: none;
@@ -466,7 +489,7 @@ button.btn {
   padding: 0.625rem 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
   font-family: inherit;
   font-size: 0.95rem;
   display: inline-flex;
@@ -711,6 +734,23 @@ button.btn:disabled {
   border-radius: 50%;
 }
 
+/*
+ * Invisible hit-area expander. The visible track stays 46x24 so the design is
+ * unchanged, while the tappable region reaches the 44px minimum. It sits inside
+ * the <label>, so a tap anywhere on it still toggles the input. `:before` is
+ * already the knob, which is why this uses `::after`.
+ */
+.slider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, 44px);
+  height: 44px;
+  border-radius: 44px;
+}
+
 input:checked + .slider {
   background-color: rgba(56, 189, 248, 0.2);
   border-color: #38bdf8;
@@ -820,7 +860,7 @@ input:checked + .slider:before {
   font-weight: 600;
   cursor: pointer;
   border: none;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .pwa-update-actions .btn-update {
@@ -843,3 +883,80 @@ input:checked + .slider:before {
 }
 
 
+
+/*
+ * Aircraft glyph glow and heading rotation.
+ *
+ * Both were inline styles, rebuilt on every render. Because `filter` is not a
+ * composited property, the repaint it forced landed in lockstep with the
+ * `transform` transition on the same element -- the animation was fighting its
+ * own glow. currentColor lets one static rule serve all three noise colours,
+ * so only the colour itself still needs to be set inline.
+ */
+.radar-aircraft-icon {
+  filter: drop-shadow(0 0 3px currentColor);
+  transition: transform 0.5s ease;
+}
+
+.radar-airport-icon {
+  color: #38bdf8;
+  opacity: 0.7;
+  filter: drop-shadow(0 0 2px currentColor);
+}
+
+/* The overhead-flight alert icon. Previously an inline `animation` style,
+   which no media query can override at any specificity. */
+.alert-beacon {
+  animation: beacon 1s infinite;
+}
+
+/*
+ * Reduced motion.
+ *
+ * This stylesheet previously contained no media queries at all, so six infinite
+ * animations ran unconditionally -- including a continuously rotating radar
+ * sweep and a pulsing red border on the overhead alert. A rotating element plus
+ * a pulsing alert is the textbook vestibular trigger this query exists for.
+ *
+ * Animations are switched off rather than shortened: none of them carry
+ * information the static layout does not already show. Transitions are kept but
+ * collapsed to near-instant, so state changes still register as changes.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .radar-sweep,
+  .radar-aircraft-beacon,
+  .radar-dot::after,
+  .noise-alert-banner::before,
+  .status-active,
+  .pwa-update-banner,
+  .pwa-update-icon,
+  .alert-beacon {
+    animation: none !important;
+  }
+
+  /* The pulsing border is the alert's only emphasis once its animation stops,
+     so make it statically visible -- its keyframes start at opacity 0. */
+  .noise-alert-banner::before {
+    opacity: 1;
+  }
+
+  /* Aircraft still need to move when data updates, but instantly rather than
+     gliding across the radar. */
+  .radar-aircraft,
+  .radar-container,
+  .radar-cardinal,
+  .radar-aircraft-tag,
+  .radar-airport,
+  .radar-aircraft-icon {
+    transition-duration: 0.01ms !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
