@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { RawAircraft, AircraftUpdate, UserSettings, OverheadEvent } from './types';
 import { getDistanceKm, getBearing, calculateCPA, angularDeltaDeg } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
@@ -142,6 +142,34 @@ const HEADING_EPSILON_DEG = 1;
 
 /** Upper bound on the exponential backoff delay. */
 const MAX_POLL_BACKOFF_MS = 60_000;
+
+/**
+ * How often the staleness clock advances.
+ *
+ * The stale check used to be an inline `Date.now()` in the middle of render, with
+ * nothing driving it. It was therefore re-evaluated only when some *unrelated*
+ * state change happened to cause a render — so if polling died quietly, the radar
+ * kept showing minutes-old aircraft with no warning at all. This tick is what
+ * makes "Signal Stale" appear on its own.
+ */
+const STALE_TICK_MS = 5_000;
+
+/** Floor for the staleness threshold, regardless of poll interval. */
+const STALE_FLOOR_MS = 30_000;
+
+/**
+ * Maximum aircraft drawn on the radar at once.
+ *
+ * Each one is ~6-7 DOM nodes, and the API result is filtered only by altitude,
+ * never by count — near a busy airport at a 40 km radius this is plausibly
+ * 100+ aircraft, i.e. 700+ nodes rebuilt on every render. This is a guard
+ * against that, not a tuned figure: it is set well above what a typical location
+ * sees, so most users never hit it.
+ *
+ * Only *rendering* is capped. `processPasses` receives the full fetched list, so
+ * the overhead log never loses a pass to this.
+ */
+const MAX_RADAR_AIRCRAFT = 60;
 
 /**
  * Distinguishes an HTTP 429 from a transport failure.
@@ -327,6 +355,54 @@ export default function App() {
   }, [settings]);
 
   const hasCoordinates = settings.homeLat !== null && settings.homeLon !== null;
+
+  /**
+   * Clock for the staleness check.
+   *
+   * Only runs while tracking, so an unconfigured or idle app does not re-render
+   * on a timer for no reason.
+   */
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasCoordinates) return;
+    const id = window.setInterval(() => setClockNow(Date.now()), STALE_TICK_MS);
+    return () => clearInterval(id);
+  }, [hasCoordinates]);
+
+  /**
+   * Whether the radar is showing data we no longer trust.
+   *
+   * This expression previously appeared inline, verbatim, in two places — and
+   * because `Date.now()` was read during render with no timer behind it, the flag
+   * only updated when something else caused a re-render. A silent polling failure
+   * therefore left a confident-looking radar full of minutes-old aircraft.
+   */
+  const isStale = useMemo(() => {
+    if (!hasCoordinates) return false;
+    if (fetchError !== null) return true;
+    if (lastFetchTime === null) return false;
+    const threshold = Math.max(STALE_FLOOR_MS, currentPollIntervalMs * 2.5);
+    return clockNow - lastFetchTime.getTime() > threshold;
+  }, [hasCoordinates, fetchError, lastFetchTime, clockNow, currentPollIntervalMs]);
+
+  /**
+   * Connectivity. The service worker serves the app shell offline, so the page
+   * loads fine with no network — but the radar silently stops updating, which
+   * looks identical to "no aircraft nearby" without this.
+   */
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine !== false
+  );
+  useEffect(() => {
+    const online = () => setIsOnline(true);
+    const offline = () => setIsOnline(false);
+    window.addEventListener('online', online);
+    window.addEventListener('offline', offline);
+    return () => {
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', offline);
+    };
+  }, []);
 
   // Synchronize dynamic polling rate when settings frequency changes.
   // Also clears any active backoff, which is what the user expects from
@@ -814,16 +890,63 @@ export default function App() {
     return directions[Math.round(bearing / 45) % 8];
   };
 
-  // Find the single loudest flight currently overhead (closest + below threshold)
-  const loudestFlight = aircraft
-    .filter(ac => ac.distanceKm <= settings.overheadRadiusKm)
-    .sort((a, b) => {
-      // Prioritize High Noise, then lower altitude
-      const noiseScore = { high: 3, medium: 2, low: 1 };
+  /**
+   * Derived aircraft lists.
+   *
+   * Each of these was computed inline in JSX, and each was computed *twice* — once
+   * to test `.length === 0` for the empty state and again to map. The incoming
+   * list also re-sorted in full every render. One memo replaces four passes.
+   */
+  const { overhead, incoming, loudestFlight, radarAircraft, hiddenRadarCount } = useMemo(() => {
+    const overhead = aircraft.filter(ac => ac.distanceKm <= settings.overheadRadiusKm);
+
+    const incoming = aircraft
+      .filter(ac => ac.isHeadingTowards && ac.distanceKm > settings.overheadRadiusKm)
+      // Soonest arrival first.
+      .sort((a, b) => (a.cpaTimeSeconds ?? 9999) - (b.cpaTimeSeconds ?? 9999));
+
+    // Copy before sorting: `overhead` is rendered in feed order, and sorting in
+    // place would silently reorder that list too.
+    const noiseScore = { high: 3, medium: 2, low: 1 } as const;
+    const loudestFlight = [...overhead].sort((a, b) => {
       const scoreDiff = noiseScore[b.noiseLevel] - noiseScore[a.noiseLevel];
-      if (scoreDiff !== 0) return scoreDiff;
-      return a.altitudeFt - b.altitudeFt;
+      return scoreDiff !== 0 ? scoreDiff : a.altitudeFt - b.altitudeFt;
     })[0];
+
+    // Nearest first, so a cap drops the least relevant contacts.
+    const byDistance = [...aircraft].sort((a, b) => a.distanceKm - b.distanceKm);
+    const radarAircraft = byDistance.slice(0, MAX_RADAR_AIRCRAFT);
+
+    return {
+      overhead,
+      incoming,
+      loudestFlight,
+      radarAircraft,
+      hiddenRadarCount: aircraft.length - radarAircraft.length
+    };
+  }, [aircraft, settings.overheadRadiusKm]);
+
+  /**
+   * Airports within the detection radius, with their polar coordinates.
+   *
+   * Previously recomputed a haversine and a bearing for all 16 entries on every
+   * render — including the ~60/sec compass renders — then discarded most of them
+   * via `return null` in the middle of the JSX.
+   */
+  const visibleAirports = useMemo(() => {
+    const { homeLat, homeLon, detectionRadiusKm, showAirportsOnRadar } = settings;
+    if (!showAirportsOnRadar || homeLat === null || homeLon === null) return [];
+    return NORTH_AMERICAN_AIRPORTS.map(ap => ({
+      ap,
+      dist: getDistanceKm(homeLat, homeLon, ap.lat, ap.lon),
+      bearing: getBearing(homeLat, homeLon, ap.lat, ap.lon)
+    })).filter(entry => entry.dist <= detectionRadiusKm);
+  }, [
+    settings.homeLat,
+    settings.homeLon,
+    settings.detectionRadiusKm,
+    settings.showAirportsOnRadar
+  ]);
 
   return (
     <div>
@@ -910,6 +1033,15 @@ export default function App() {
               </>
             )}
             <span>•</span>
+            {/* An offline app looks identical to "no aircraft nearby" without
+                this: the service worker still serves the shell, so the radar
+                simply stops updating. */}
+            {!isOnline && (
+              <>
+                <span style={{ color: '#fbbf24', fontWeight: 600 }}>OFFLINE</span>
+                <span>•</span>
+              </>
+            )}
             {isPolling ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Icons.Clock style={{ width: '13px', height: '13px', opacity: 0.5 }} />
@@ -1019,7 +1151,7 @@ export default function App() {
               <div className="card" style={{ padding: '1rem' }}>
                 <div className="radar-wrapper">
                   <div 
-                    className={`radar-container ${settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) ? 'stale' : ''}`}
+                    className={`radar-container ${isStale ? 'stale' : ''}`}
                     style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `rotate(${-deviceHeading}deg)`, transition: 'transform 0.2s ease-out' } : {}}
                   >
                     <div className="radar-sweep"></div>
@@ -1053,14 +1185,14 @@ export default function App() {
                     <div className="radar-dot" style={{ top: 'calc(50% - 4px)', left: 'calc(50% - 4px)', backgroundColor: '#38bdf8', boxShadow: 'none' }}></div>
                     
                     {/* Stale Overlay */}
-                    {settings.homeLat !== null && (fetchError !== null || (lastFetchTime !== null && (Date.now() - lastFetchTime.getTime() > Math.max(30000, currentPollIntervalMs * 2.5)))) && (
+                    {isStale && (
                       <div className="radar-stale-overlay" style={settings.radarOrientation === 'heading-up' && deviceHeading !== null ? { transform: `translate(-50%, -50%) rotate(${deviceHeading}deg)`, transition: 'transform 0.1s ease-out' } : {}}>
                         Signal Stale
                       </div>
                     )}
 
                     {/* Render aircraft on radar */}
-                    {aircraft.map((ac) => {
+                    {radarAircraft.map((ac) => {
                       const maxR = settings.detectionRadiusKm;
                       // Calculate polar coordinates mapping to radar canvas
                       const radiusPercent = (ac.distanceKm / maxR) * 50; // max radius is 50% from center
@@ -1139,15 +1271,11 @@ export default function App() {
                       );
                     })}
                     
-                    {/* Render airports on radar */}
-                    {settings.showAirportsOnRadar && settings.homeLat !== null && settings.homeLon !== null && 
-                      NORTH_AMERICAN_AIRPORTS.map((ap) => {
-                        const dist = getDistanceKm(settings.homeLat!, settings.homeLon!, ap.lat, ap.lon);
-                         if (dist > settings.detectionRadiusKm) return null;
-                         
-                         const maxR = settings.detectionRadiusKm;
-                         const radiusPercent = (dist / maxR) * 50;
-                         const bearing = getBearing(settings.homeLat!, settings.homeLon!, ap.lat, ap.lon);
+                    {/* Render airports on radar. Distances and bearings come
+                        from a memo rather than being recomputed for all 16
+                        entries on every render. */}
+                    {visibleAirports.map(({ ap, dist, bearing }) => {
+                         const radiusPercent = (dist / settings.detectionRadiusKm) * 50;
                          const angleRad = ((bearing - 90) * Math.PI) / 180;
                          
                          const left = 50 + radiusPercent * Math.cos(angleRad);
@@ -1177,7 +1305,13 @@ export default function App() {
                     }
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                    Scanning Radius: {settings.detectionRadiusKm} km • Radar shows {aircraft.length} aircraft
+                    Scanning Radius: {settings.detectionRadiusKm} km • Radar shows{' '}
+                    {radarAircraft.length} aircraft
+                    {/* Never silently truncate: if the cap drops contacts, say so,
+                        otherwise the count reads as complete when it is not. */}
+                    {hiddenRadarCount > 0 && (
+                      <> • {hiddenRadarCount} more not drawn (nearest {MAX_RADAR_AIRCRAFT} shown)</>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1186,11 +1320,10 @@ export default function App() {
               <div className="card">
                 <h2>Currently Overhead</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {aircraft.filter(ac => ac.distanceKm <= settings.overheadRadiusKm).length === 0 ? (
+                  {overhead.length === 0 ? (
                     <div className="empty-state">No flights within immediate overhead radius.</div>
                   ) : (
-                    aircraft
-                      .filter(ac => ac.distanceKm <= settings.overheadRadiusKm)
+                    overhead
                       .map((ac) => (
                         <div key={ac.hex} className="aircraft-card">
                           <div className="aircraft-header">
@@ -1229,13 +1362,10 @@ export default function App() {
               <div className="card">
                 <h2>Heading Towards You</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {aircraft.filter(ac => ac.isHeadingTowards && ac.distanceKm > settings.overheadRadiusKm).length === 0 ? (
+                  {incoming.length === 0 ? (
                     <div className="empty-state">No flights heading towards your location.</div>
                   ) : (
-                    aircraft
-                      .filter(ac => ac.isHeadingTowards && ac.distanceKm > settings.overheadRadiusKm)
-                      // Sort by ETA
-                      .sort((a, b) => (a.cpaTimeSeconds || 9999) - (b.cpaTimeSeconds || 9999))
+                    incoming
                       .map((ac) => (
                         <div key={ac.hex} className="aircraft-card">
                           <div className="aircraft-header">
