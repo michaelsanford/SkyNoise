@@ -377,6 +377,17 @@ const STALE_FLOOR_MS = 30_000;
 const SW_UPDATE_CHECK_MS = 60 * 60 * 1000;
 
 /**
+ * Grace period before forcing a reload ourselves.
+ *
+ * updateServiceWorker(true) reloads by waiting for the controller to change,
+ * which only happens when there is a waiting worker to activate. When there is
+ * not — the waiting worker already took over, or the prompt outlived the update —
+ * the promise resolves and nothing whatsoever happens, so the button looks
+ * broken. This is the backstop that guarantees the click has an effect.
+ */
+const RELOAD_FALLBACK_MS = 1500;
+
+/**
  * Maximum aircraft drawn on the radar at once.
  *
  * Each one is ~6-7 DOM nodes, and the API result is filtered only by altitude,
@@ -470,7 +481,7 @@ interface ActivePass {
 
 export default function App() {
   const {
-    needRefresh: [needRefresh, setNeedRefresh],
+    needRefresh: [needRefresh],
     updateServiceWorker
   } = useRegisterSW({
     /**
@@ -563,6 +574,9 @@ export default function App() {
 
   // Two-step confirmation for the destructive log wipe.
   const [confirmingClear, setConfirmingClear] = useState(false);
+
+  /** Set while the update is being applied, so the click has a visible effect. */
+  const [applyingUpdate, setApplyingUpdate] = useState(false);
   const [confirmingErase, setConfirmingErase] = useState(false);
 
   /**
@@ -574,6 +588,27 @@ export default function App() {
    */
   const [liveMessage, setLiveMessage] = useState('');
   const announce = useCallback((message: string) => setLiveMessage(message), []);
+
+  /**
+   * Apply a pending service worker update.
+   *
+   * This was previously a bare onClick={() => updateServiceWorker(true)}, with two
+   * problems: the returned promise was neither awaited nor caught, and the reload
+   * it performs depends on a controllerchange event that never fires when there is
+   * no waiting worker. The button could therefore silently do nothing at all.
+   */
+  const applyUpdate = useCallback(async () => {
+    setApplyingUpdate(true);
+    announce('Installing the new version. The app will reload.');
+    try {
+      await updateServiceWorker(true);
+    } catch {
+      // Deliberately swallowed: the fallback below still reloads, which is more
+      // useful than an error the user cannot act on.
+    }
+    // Reached only if the call above did not already navigate away.
+    window.setTimeout(() => window.location.reload(), RELOAD_FALLBACK_MS);
+  }, [announce, updateServiceWorker]);
 
   /**
    * Erase every key the app owns and return to first-run state.
@@ -1282,15 +1317,25 @@ export default function App() {
       {needRefresh && (
         <div className="pwa-update-banner">
           <div className="pwa-update-content">
-            <span className="pwa-update-icon">⚡</span>
-            <span>A new version of SkyNoise is available! Click reload to update.</span>
+            <span className="pwa-update-icon" aria-hidden="true">
+              ⚡
+            </span>
+            <span>
+              {applyingUpdate
+                ? 'Installing the new version…'
+                : 'A new version of SkyNoise is available.'}
+            </span>
           </div>
           <div className="pwa-update-actions">
-            <button className="btn btn-update" onClick={() => updateServiceWorker(true)}>
-              Reload
-            </button>
-            <button className="btn btn-close" onClick={() => setNeedRefresh(false)}>
-              Close
+            {/* One action only. There is nothing meaningful to cancel: dismissing
+                the banner leaves the app running a build it has already replaced. */}
+            <button
+              type="button"
+              className="btn btn-update"
+              onClick={applyUpdate}
+              disabled={applyingUpdate}
+            >
+              {applyingUpdate ? 'Reloading…' : 'Reload'}
             </button>
           </div>
         </div>
