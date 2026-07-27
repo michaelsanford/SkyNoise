@@ -1,0 +1,7 @@
+# Format and lint staged files only.
+#
+# Worth being explicit: CI is the real gate — `Verify` is a required status check
+# on main, and it runs lint, typecheck, tests and build on every PR. This hook is
+# a convenience that saves a round trip, not a safety net. `--no-verify` is a
+# legitimate escape hatch.
+npx lint-staged

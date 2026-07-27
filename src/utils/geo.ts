@@ -23,7 +23,7 @@ export function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: nu
  * Used to decide whether a new compass reading is worth re-rendering for.
  */
 export function angularDeltaDeg(a: number, b: number): number {
-  const diff = Math.abs(((a - b) % 360 + 360) % 360);
+  const diff = Math.abs((((a - b) % 360) + 360) % 360);
   return diff > 180 ? 360 - diff : diff;
 }
 
@@ -37,8 +37,7 @@ export function getBearing(lat1: number, lon1: number, lat2: number, lon2: numbe
 
   const y = Math.sin(dLon) * Math.cos(lat2Rad);
   const x =
-    Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+    Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
   const brng = (Math.atan2(y, x) * 180) / Math.PI;
   return (brng + 360) % 360;
 }

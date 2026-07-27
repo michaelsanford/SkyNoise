@@ -23,11 +23,11 @@ import '@testing-library/jest-dom/vitest';
 function createStorage(): Storage {
   let store = new Map<string, string>();
   return {
-    getItem: (k) => (store.has(k) ? store.get(k)! : null),
+    getItem: k => (store.has(k) ? store.get(k)! : null),
     setItem: (k, v) => void store.set(k, String(v)),
-    removeItem: (k) => void store.delete(k),
+    removeItem: k => void store.delete(k),
     clear: () => void (store = new Map()),
-    key: (i) => [...store.keys()][i] ?? null,
+    key: i => [...store.keys()][i] ?? null,
     get length() {
       return store.size;
     }
@@ -61,10 +61,7 @@ beforeEach(() => {
 
   // Rejecting rather than resolving empty: the polling effect fires on mount,
   // and a resolved empty payload would mask a change that broke the fetch path.
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockRejectedValue(new Error('fetch not stubbed for this test'))
-  );
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('fetch not stubbed for this test')));
 
   // Present but without requestPermission, i.e. the non-iOS branch.
   vi.stubGlobal('DeviceOrientationEvent', function DeviceOrientationEvent() {});

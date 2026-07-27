@@ -1,0 +1,14 @@
+# Build output and generated artefacts
+dist
+coverage
+node_modules
+package-lock.json
+
+# Binary and hand-authored assets
+public
+
+# Markdown is deliberately excluded. Prettier normalises list markers and
+# emphasis characters, which would rewrite most of README.md, PRIVACY.md and
+# SECURITY.md for no functional gain and bury their real history under a
+# whole-file reformat.
+*.md

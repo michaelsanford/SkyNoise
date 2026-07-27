@@ -38,7 +38,7 @@ describe('Geo Utilities', () => {
   // Coordinates for CYHU (Saint-Hubert) and CYUL (Montreal Trudeau)
   const cyhuLat = 45.5175;
   const cyhuLon = -73.4169;
-  
+
   const cyulLat = 45.4706;
   const cyulLon = -73.7408;
 
@@ -59,10 +59,10 @@ describe('Geo Utilities', () => {
   describe('getBearing', () => {
     it('should compute correct compass bearing direction', () => {
       // East-facing coordinates
-      const startLat = 45.0000;
-      const startLon = -73.0000;
-      const endLat = 45.0000;
-      const endLon = -72.0000;
+      const startLat = 45.0;
+      const startLon = -73.0;
+      const endLat = 45.0;
+      const endLon = -72.0;
       const bearing = getBearing(startLat, startLon, endLat, endLon);
       // Heading East is 90 degrees (with small spherical curvature drift)
       expect(bearing).toBeGreaterThan(88);
@@ -74,9 +74,12 @@ describe('Geo Utilities', () => {
     it('should detect when an aircraft is heading towards a target', () => {
       // Plane is West of target, flying East (090 heading) -> moving towards target
       const result = calculateCPA(
-        45.0000, -73.5000, // Plane
-        90, 150,            // Track, Speed (knots)
-        45.0000, -73.0000  // Target
+        45.0,
+        -73.5, // Plane
+        90,
+        150, // Track, Speed (knots)
+        45.0,
+        -73.0 // Target
       );
       expect(result.isHeadingTowards).toBe(true);
       expect(result.cpaTimeSeconds).not.toBeNull();
@@ -86,9 +89,12 @@ describe('Geo Utilities', () => {
     it('should detect when an aircraft is heading away from a target', () => {
       // Plane is West of target, flying West (270 heading) -> moving away from target
       const result = calculateCPA(
-        45.0000, -73.5000, // Plane
-        270, 150,           // Track, Speed
-        45.0000, -73.0000  // Target
+        45.0,
+        -73.5, // Plane
+        270,
+        150, // Track, Speed
+        45.0,
+        -73.0 // Target
       );
       expect(result.isHeadingTowards).toBe(false);
       expect(result.cpaTimeSeconds).toBeNull();

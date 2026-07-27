@@ -19,7 +19,7 @@ if (process.env.VITE_COMMIT_SHA) {
 export default defineConfig({
   base: '/SkyNoise/',
   define: {
-    __COMMIT_SHA__: JSON.stringify(commitSha),
+    __COMMIT_SHA__: JSON.stringify(commitSha)
   },
   plugins: [
     react(),
@@ -105,18 +105,27 @@ export default defineConfig({
     // time and cannot resolve under Vitest. Scoped to `test.alias` so the
     // production build still gets the real implementation.
     alias: {
-      'virtual:pwa-register/react': new URL(
-        './src/test/mocks/pwa-register.ts',
-        import.meta.url
-      ).pathname
+      'virtual:pwa-register/react': new URL('./src/test/mocks/pwa-register.ts', import.meta.url)
+        .pathname
     },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'src/main.tsx']
-      // No thresholds yet: a number picked against a near-zero baseline either
-      // fails the build or means nothing. Measure first, then ratchet.
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/**/*.d.ts', 'src/main.tsx'],
+      /*
+       * A ratchet, not an aspiration. These are the measured values at the time
+       * of writing, rounded down by a point to absorb v8 counting jitter — the
+       * job is to stop coverage sliding backwards, not to assert a target nobody
+       * agreed to. Raise them when real coverage rises; never lower them to make
+       * a red build green.
+       */
+      thresholds: {
+        statements: 74,
+        branches: 65,
+        functions: 66,
+        lines: 77
+      }
     }
   }
 });

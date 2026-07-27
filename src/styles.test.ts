@@ -19,7 +19,6 @@ const tsx = readFileSync('src/App.tsx', 'utf8');
  * new animation added months from now will not remember the media query.
  */
 
-
 /** The `@media (prefers-reduced-motion: reduce)` block body. */
 function reducedMotionBlock(): string {
   const start = css.indexOf('@media (prefers-reduced-motion: reduce)');
@@ -59,7 +58,7 @@ describe('reduced motion', () => {
     }
     expect(animated.size).toBeGreaterThan(0);
 
-    const missing = [...animated].filter((sel) => !block.includes(sel));
+    const missing = [...animated].filter(sel => !block.includes(sel));
     expect(
       missing,
       `animated selectors absent from the reduced-motion block: ${missing.join(', ')}`
@@ -154,7 +153,9 @@ describe('accessibility styling', () => {
     const offenders = ringSelectors.filter(s => !s.includes(':focus-visible'));
     // The pre-existing `input:focus, select:focus` border restyle is allowed;
     // it is not an outline ring.
-    expect(offenders.every(s => s.includes('input:focus') || s.includes('select:focus'))).toBe(true);
+    expect(offenders.every(s => s.includes('input:focus') || s.includes('select:focus'))).toBe(
+      true
+    );
   });
 
   it('guards the gradient heading so it cannot render invisible', () => {
@@ -192,9 +193,7 @@ describe('no blocking native dialogs', () => {
     //
     // Comments are stripped first: this file's own explanatory comments mention
     // both by name, and matching those would make the test permanently red.
-    const code = tsx
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    const code = tsx.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
     expect(code).not.toMatch(/\bconfirm\s*\(/);
     expect(code).not.toMatch(/\balert\s*\(/);

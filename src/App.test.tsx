@@ -49,9 +49,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: /"Who Was That\?" Log/ })).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /Settings/ }));
-    expect(
-      screen.getByRole('heading', { name: /Device Geolocation Status/ })
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Device Geolocation Status/ })).toBeInTheDocument();
   });
 
   it('shows the empty state when the history log is empty', async () => {

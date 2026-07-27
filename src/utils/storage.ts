@@ -113,7 +113,12 @@ export function coerceSettings(raw: unknown): UserSettings {
     airportCode: typeof r.airportCode === 'string' ? r.airportCode.slice(0, 8) : '',
     // Ranges match the sliders in the Tracker Thresholds card.
     maxAltitudeFt: numberInRange(r.maxAltitudeFt, 3000, 15000, DEFAULT_SETTINGS.maxAltitudeFt),
-    detectionRadiusKm: numberInRange(r.detectionRadiusKm, 5, 40, DEFAULT_SETTINGS.detectionRadiusKm),
+    detectionRadiusKm: numberInRange(
+      r.detectionRadiusKm,
+      5,
+      40,
+      DEFAULT_SETTINGS.detectionRadiusKm
+    ),
     overheadRadiusKm: numberInRange(r.overheadRadiusKm, 0.5, 5, DEFAULT_SETTINGS.overheadRadiusKm),
     useGPS: boolOr(r.useGPS, DEFAULT_SETTINGS.useGPS),
     // Membership, not a range: a stored value must correspond to a button in

@@ -9,7 +9,7 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug! Please fill in the details below.
-        
+
         **Security vulnerabilities:** Do *not* post public issues. Report them privately via our [Security Policy](https://github.com/michaelsanford/SkyNoise/security/policy).
   - type: input
     id: version

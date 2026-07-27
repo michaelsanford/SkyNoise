@@ -28,9 +28,9 @@ describe('tablist semantics', () => {
 
   it('marks exactly one tab selected', () => {
     render(<App />);
-    const selected = screen.getAllByRole('tab').filter(
-      t => t.getAttribute('aria-selected') === 'true'
-    );
+    const selected = screen
+      .getAllByRole('tab')
+      .filter(t => t.getAttribute('aria-selected') === 'true');
     expect(selected).toHaveLength(1);
     expect(selected[0]).toHaveAccessibleName(/Live Tracker/);
   });
@@ -55,10 +55,7 @@ describe('tablist semantics', () => {
 
     // Wrap backwards.
     await user.keyboard('{ArrowLeft}');
-    expect(screen.getByRole('tab', { name: /Settings/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
+    expect(screen.getByRole('tab', { name: /Settings/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('supports Home and End', async () => {
@@ -336,10 +333,7 @@ describe('tab routing', () => {
   it('opens the tab named in the hash', () => {
     window.history.replaceState(null, '', '#settings');
     render(<App />);
-    expect(screen.getByRole('tab', { name: /Settings/ })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    );
+    expect(screen.getByRole('tab', { name: /Settings/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('falls back to Live for an unknown hash instead of rendering nothing', () => {

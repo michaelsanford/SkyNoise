@@ -19,7 +19,7 @@ updates:
       # dependency count. Majors stay individual — they are the ones that break.
       minor-and-patch:
         patterns:
-          - '*'
+          - "*"
         update-types:
           - minor
           - patch
