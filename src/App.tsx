@@ -9,6 +9,7 @@ declare const __COMMIT_SHA__: string;
 interface IconProps {
   className?: string;
   style?: React.CSSProperties;
+  title?: string;
 }
 
 // Inline SVGs for lightweight, zero-dependency rendering
@@ -654,9 +655,10 @@ export default function App() {
               <>
                 <Icons.Signal 
                   level={gpsAccuracy === null ? 0 : gpsAccuracy < 10 ? 4 : gpsAccuracy < 30 ? 3 : gpsAccuracy < 100 ? 2 : 1} 
-                  style={{ width: '13px', height: '13px', color: '#34d399' }} 
+                  style={{ width: '13px', height: '13px', color: '#34d399', cursor: 'help' }} 
+                  title={`GPS Accuracy: ±${gpsAccuracy !== null ? Math.round(gpsAccuracy) : '?'}m`}
                 />
-                <span>GPS   </span>
+                <span title={`GPS Accuracy: ±${gpsAccuracy !== null ? Math.round(gpsAccuracy) : '?'}m`} style={{ cursor: 'help' }}>GPS   </span>
               </>
             )}
             <span>•</span>
@@ -1059,7 +1061,7 @@ export default function App() {
             
             {settings.useGPS && (
               <div className="permissions-badge">
-                Sensor Accuracy: Active • GPS Position: ({settings.homeLat || 'searching...'}, {settings.homeLon || 'searching...'})
+                Sensor Accuracy: {gpsAccuracy !== null ? `±${Math.round(gpsAccuracy)}m` : 'Calibrating...'} • GPS Position: ({settings.homeLat || 'searching...'}, {settings.homeLon || 'searching...'})
               </div>
             )}
           </div>
