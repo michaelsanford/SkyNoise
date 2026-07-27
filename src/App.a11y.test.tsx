@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { SETTINGS_KEY } from './utils/storage';
@@ -321,5 +321,80 @@ describe('erase all local data', () => {
 
     const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)!);
     expect(stored.homeLat).toBe(45.5175);
+  });
+});
+
+/**
+ * Deep-linkable tabs.
+ *
+ * Previously the active tab was plain state: Settings and History could not be
+ * linked or bookmarked, the choice was lost on reload — unlike settings and
+ * history, which *are* persisted — and in an installed PWA the Back button exited
+ * the app rather than leaving the current tab.
+ */
+describe('tab routing', () => {
+  it('opens the tab named in the hash', () => {
+    window.history.replaceState(null, '', '#settings');
+    render(<App />);
+    expect(screen.getByRole('tab', { name: /Settings/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+  });
+
+  it('falls back to Live for an unknown hash instead of rendering nothing', () => {
+    // The hash is user-editable input, so it is validated rather than trusted.
+    window.history.replaceState(null, '', '#bogus');
+    render(<App />);
+    expect(screen.getByRole('tab', { name: /Live Tracker/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+  });
+
+  it('writes the hash when the tab changes', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Who Was That/ }));
+    expect(window.location.hash).toBe('#history');
+  });
+
+  it('follows an externally changed hash, e.g. a PWA shortcut', async () => {
+    render(<App />);
+    await act(async () => {
+      window.history.replaceState(null, '', '#history');
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    expect(screen.getByRole('tab', { name: /Who Was That/ })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+  });
+
+  it('pushes history entries so Back returns to the previous tab', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const before = window.history.length;
+
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+    // A new entry, rather than replacing — this is what makes Back work instead
+    // of exiting an installed PWA.
+    expect(window.history.length).toBeGreaterThan(before);
+    expect(window.location.hash).toBe('#settings');
+  });
+
+  it('does not stack duplicate entries for the same tab', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+    const afterFirst = window.history.length;
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
+    expect(window.history.length).toBe(afterFirst);
+  });
+
+  it('normalises an empty hash so Back has somewhere to return to', () => {
+    window.history.replaceState(null, '', window.location.pathname);
+    render(<App />);
+    expect(window.location.hash).toBe('#live');
   });
 });

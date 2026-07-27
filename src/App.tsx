@@ -214,6 +214,20 @@ const NOISE_LABELS: Record<'high' | 'medium' | 'low', string> = {
 
 type TabId = 'live' | 'history' | 'settings';
 
+const TAB_IDS = ['live', 'history', 'settings'] as const;
+
+/**
+ * Read the active tab from the URL hash.
+ *
+ * Validated against the known set rather than trusted: the hash is user-editable
+ * input, and an unrecognised value must land somewhere sensible instead of
+ * rendering no panel at all.
+ */
+function tabFromHash(hash: string): TabId {
+  const candidate = hash.replace(/^#/, '');
+  return (TAB_IDS as readonly string[]).includes(candidate) ? (candidate as TabId) : 'live';
+}
+
 /** Single source of truth for the tablist, so ids and order cannot drift. */
 const TABS: ReadonlyArray<{ id: TabId; label: string; Icon: (p: IconProps) => React.ReactElement }> = [
   { id: 'live', label: 'Live Tracker', Icon: Icons.Radar },
@@ -276,7 +290,52 @@ export default function App() {
     }
   });
 
-  const [activeTab, setActiveTab] = useState<TabId>('live');
+  /**
+   * Active tab, mirrored into the URL hash.
+   *
+   * The hash rather than a path: it needs no router dependency and is immune to
+   * the `/SkyNoise/` base, whereas pushState paths on GitHub Pages 404 on reload
+   * without a redirect shim.
+   *
+   * Previously plain state, so Settings and History could not be linked or
+   * bookmarked, tab choice was lost on reload (unlike settings and history, which
+   * *are* persisted — an inconsistency users notice), and in an installed PWA the
+   * Back button exited the app instead of leaving the current tab.
+   */
+  const [activeTab, setActiveTabState] = useState<TabId>(() =>
+    tabFromHash(typeof window === 'undefined' ? '' : window.location.hash)
+  );
+
+  /** Change tab and push a history entry, so Back returns to the previous tab. */
+  const setActiveTab = useCallback((next: TabId) => {
+    setActiveTabState(next);
+    if (typeof window === 'undefined') return;
+    if (tabFromHash(window.location.hash) === next) return;
+    // pushState rather than assigning location.hash: assignment fires
+    // hashchange, which would set state a second time.
+    window.history.pushState(null, '', `#${next}`);
+  }, []);
+
+  // Back/Forward, and an externally changed hash (a shared link, or a PWA
+  // shortcut opening an already-running app).
+  useEffect(() => {
+    const onHashChange = () => setActiveTabState(tabFromHash(window.location.hash));
+    window.addEventListener('hashchange', onHashChange);
+    window.addEventListener('popstate', onHashChange);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      window.removeEventListener('popstate', onHashChange);
+    };
+  }, []);
+
+  // Normalise the initial URL so the first tab change does not leave a
+  // hash-less entry that Back would return to.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.location.hash === '') {
+      window.history.replaceState(null, '', '#live');
+    }
+  }, []);
 
   // Roving-tabindex support: arrow keys move focus between tabs, so the focused
   // tab has to be imperatively focusable.

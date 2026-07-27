@@ -47,11 +47,23 @@ export default defineConfig({
         // Deliberately kept: the radar is a portrait-first layout. Worth
         // revisiting if a landscape layout is ever designed.
         orientation: 'portrait',
-        // `shortcuts` deliberately omitted here: they would target #live /
-        // #history, and nothing reads the hash yet, so every shortcut would
-        // silently open the default tab. Added alongside hash routing.
-        //
-        // `screenshots` also omitted. They unlock Chrome's richer install UI, but
+        // Target the hashes the app now reads. Held back until routing existed,
+        // because a shortcut that silently opens the wrong tab is worse than none.
+        shortcuts: [
+          {
+            name: 'Live Tracker',
+            short_name: 'Live',
+            description: 'Radar of aircraft currently overhead',
+            url: '/SkyNoise/#live'
+          },
+          {
+            name: 'Who Was That?',
+            short_name: 'History',
+            description: 'Log of recent overhead passes',
+            url: '/SkyNoise/#history'
+          }
+        ],
+        // `screenshots` still omitted: they unlock Chrome's richer install UI, but
         // capturing them needs a real browser, and a fabricated screenshot in an
         // install prompt would misrepresent the app.
         icons: [

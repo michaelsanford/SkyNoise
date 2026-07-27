@@ -35,6 +35,13 @@ function createStorage(): Storage {
 }
 
 beforeEach(() => {
+  // The active tab lives in the URL hash, and jsdom keeps its location across
+  // tests in a file. Without this reset, a test that visits Settings leaves the
+  // next test starting there instead of on the default tab.
+  if (window.location.hash !== '') {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+
   vi.stubGlobal('localStorage', createStorage());
 
   // Never resolves by default: tests that care about a fix opt in explicitly.
