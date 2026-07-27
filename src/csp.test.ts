@@ -15,8 +15,14 @@ const html = readFileSync('index.html', 'utf8');
 const tsx = readFileSync('src/App.tsx', 'utf8');
 
 function policy(): Record<string, string[]> {
-  const m = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
-  expect(m, 'no CSP meta tag found').not.toBeNull();
+  // Locate the whole meta element, then pull `content` out of it. Deliberately
+  // not a single-line regex over `http-equiv=... content=...`: a formatter is
+  // free to reorder those attributes or put them on separate lines, and the
+  // policy's correctness does not depend on either.
+  const tag = html.match(/<meta[^>]*http-equiv="Content-Security-Policy"[^>]*>/);
+  expect(tag, 'no CSP meta tag found').not.toBeNull();
+  const m = tag![0].match(/content="([^"]+)"/);
+  expect(m, 'CSP meta tag has no content attribute').not.toBeNull();
   return Object.fromEntries(
     m![1]
       .split(';')

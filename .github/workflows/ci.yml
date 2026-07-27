@@ -2,7 +2,7 @@ name: CI Verification
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   # No branch filter: a filter of [main] would skip PRs that target another
   # branch, so stacked PRs would get no CI at all — and could never satisfy
   # the required status check.
@@ -41,6 +41,9 @@ jobs:
       - name: Dependency Audit (production, advisory)
         run: npm audit --omit=dev --audit-level=moderate
         continue-on-error: true
+
+      - name: Formatting Check
+        run: npm run format:check
 
       - name: Code Linting
         run: npm run lint
