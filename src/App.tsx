@@ -6,6 +6,7 @@ import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
 import {
   DEFAULT_SETTINGS,
   eraseAllStoredData,
+  POLL_INTERVAL_OPTIONS,
   isValidCoordinate,
   loadHistory,
   loadSettings,
@@ -140,8 +141,21 @@ const Icons = {
  */
 const HEADING_EPSILON_DEG = 1;
 
-/** Upper bound on the exponential backoff delay. */
-const MAX_POLL_BACKOFF_MS = 60_000;
+/**
+ * Upper bound on the exponential backoff delay.
+ *
+ * Must stay above the slowest selectable interval. When the options topped out
+ * at 60s and this cap was also 60s, Math.min(cap, base * 2) could return a
+ * value BELOW the base interval — so a 429 would have made polling *faster*,
+ * which is the opposite of backing off. The cap is now derived per call from
+ * whichever is larger.
+ */
+const MAX_POLL_BACKOFF_MS = 300_000;
+
+/** Backoff ceiling that can never undercut the user's chosen interval. */
+function backoffCeilingMs(baseSeconds: number): number {
+  return Math.max(MAX_POLL_BACKOFF_MS, baseSeconds * 1000);
+}
 
 /**
  * How often the staleness clock advances.
@@ -721,7 +735,8 @@ export default function App() {
         const response = await fetch(url);
         
         if (response.status === 429) {
-          applyPollInterval(prev => Math.min(MAX_POLL_BACKOFF_MS, prev * 2));
+          const ceiling = backoffCeilingMs(snapSettings.pollIntervalSeconds);
+          applyPollInterval(prev => Math.min(ceiling, prev * 2));
           throw new RateLimitError(
             'Rate limited by API server. Automatically backing off polling frequency.'
           );
@@ -789,7 +804,8 @@ export default function App() {
         // larger multiplier before throwing; stacking this on top made a single
         // rate-limit response jump 10s -> 20s -> 30s.
         if (!(err instanceof RateLimitError)) {
-          applyPollInterval(prev => Math.min(MAX_POLL_BACKOFF_MS, prev * 1.5));
+          const ceiling = backoffCeilingMs(snapSettings.pollIntervalSeconds);
+          applyPollInterval(prev => Math.min(ceiling, prev * 1.5));
         }
       } finally {
         isFetching = false;
@@ -1734,7 +1750,7 @@ export default function App() {
                 aria-labelledby="interval-label"
                 style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}
               >
-                {[5, 10, 20, 30, 60].map((sec) => (
+                {POLL_INTERVAL_OPTIONS.map((sec) => (
                   <button
                     key={sec}
                     type="button"

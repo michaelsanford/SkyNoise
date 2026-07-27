@@ -16,6 +16,17 @@ export const HISTORY_KEY = 'skynoise_history';
 /** Newest-first cap, matching the write path in App.tsx. */
 export const HISTORY_LIMIT = 100;
 
+/**
+ * Selectable poll intervals, in seconds.
+ *
+ * Single source of truth: the settings UI renders these, and a stored value is
+ * validated against membership rather than a numeric range. That way the persisted
+ * value can never be something the UI has no button for — and legacy values from
+ * the old, faster set (5s and 10s) migrate up to the default instead of silently
+ * continuing to hammer the API.
+ */
+export const POLL_INTERVAL_OPTIONS = [20, 45, 60, 90] as const;
+
 export const DEFAULT_SETTINGS: UserSettings = {
   homeLat: null,
   homeLon: null,
@@ -26,7 +37,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   detectionRadiusKm: 15,
   overheadRadiusKm: 1.5,
   useGPS: true,
-  pollIntervalSeconds: 10,
+  pollIntervalSeconds: 20,
   radarOrientation: 'north-up',
   showAirportsOnRadar: true
 };
@@ -105,12 +116,14 @@ export function coerceSettings(raw: unknown): UserSettings {
     detectionRadiusKm: numberInRange(r.detectionRadiusKm, 5, 40, DEFAULT_SETTINGS.detectionRadiusKm),
     overheadRadiusKm: numberInRange(r.overheadRadiusKm, 0.5, 5, DEFAULT_SETTINGS.overheadRadiusKm),
     useGPS: boolOr(r.useGPS, DEFAULT_SETTINGS.useGPS),
-    pollIntervalSeconds: numberInRange(
-      r.pollIntervalSeconds,
-      1,
-      300,
-      DEFAULT_SETTINGS.pollIntervalSeconds
-    ),
+    // Membership, not a range: a stored value must correspond to a button in
+    // the UI. This is also the migration path for the old 5s and 10s options,
+    // which now coerce up to the default rather than persisting.
+    pollIntervalSeconds: (POLL_INTERVAL_OPTIONS as readonly number[]).includes(
+      r.pollIntervalSeconds as number
+    )
+      ? (r.pollIntervalSeconds as number)
+      : DEFAULT_SETTINGS.pollIntervalSeconds,
     radarOrientation: oneOf(
       r.radarOrientation,
       ['north-up', 'heading-up'] as const,

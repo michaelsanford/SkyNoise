@@ -15,7 +15,7 @@ const CONFIGURED = JSON.stringify({
   homeLat: 45.5175,
   homeLon: -73.4169,
   useGPS: false,
-  pollIntervalSeconds: 10,
+  pollIntervalSeconds: 20,
   radarOrientation: 'heading-up'
 });
 
@@ -60,7 +60,7 @@ describe('polling scheduler', () => {
 
     for (const expected of [2, 3, 4]) {
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(20_000);
       });
       expect(fetchMock).toHaveBeenCalledTimes(expected);
     }
@@ -85,28 +85,28 @@ describe('polling scheduler', () => {
 
     // Backoff doubled 10s -> 20s, so nothing should happen at 10s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(20_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     // ...and exactly one more at 20s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(20_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('surfaces the backoff to the user and caps it at 60s', async () => {
+  it('surfaces the backoff to the user and caps it', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(rateLimited()));
 
     await act(async () => {
       render(<App />);
     });
 
-    // Drive several backoff doublings: 10 -> 20 -> 40 -> 60 (capped).
-    for (let i = 0; i < 6; i++) {
+    // From a 20s base, doubling gives 40 -> 80 -> 160 -> 300 (capped).
+    for (let i = 0; i < 8; i++) {
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(300_000);
       });
     }
 
@@ -117,7 +117,33 @@ describe('polling scheduler', () => {
 
     const notice = screen.queryByText(/Rate Limit Backoff Active/i);
     expect(notice).not.toBeNull();
-    expect(notice!.textContent).toMatch(/polling every 60 seconds/i);
+    expect(notice!.textContent).toMatch(/polling every 300 seconds/i);
+  });
+
+  /**
+   * Regression guard for a trap introduced by slowing the intervals down. The cap
+   * was a flat 60s while the slowest selectable interval became 90s, so
+   * Math.min(cap, base * 2) returned 60s — BELOW the base. A 429 would have made
+   * polling faster, which is the opposite of backing off.
+   */
+  it('never backs off to a delay shorter than the chosen interval', async () => {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify({ homeLat: 45.5175, homeLon: -73.4169, useGPS: false, pollIntervalSeconds: 90 })
+    );
+    const fetchMock = vi.fn().mockResolvedValue(rateLimited());
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(<App />);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Nothing may fire before the 90s base has elapsed at minimum.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(89_000);
+    });
+    expect(fetchMock, 'backed off to shorter than the base interval').toHaveBeenCalledTimes(1);
   });
 
   it('resets the delay after a success following a backoff', async () => {
@@ -132,16 +158,16 @@ describe('polling scheduler', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Backed off to 20s; the success there resets to 10s.
+    // Backed off to 40s from the 20s base; the success there resets to 20s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.advanceTimersByTimeAsync(40_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/Rate Limit Backoff Active/i)).toBeNull();
 
-    // Back on the 10s cadence, and the reset did not itself fetch.
+    // Back on the 20s cadence, and the reset did not itself fetch.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(20_000);
     });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
@@ -262,9 +288,9 @@ describe('stale signal', () => {
     });
     expect(screen.queryByText(/Signal Stale/i)).toBeNull();
 
-    // Threshold is max(30s, interval * 2.5) = 30s for a 10s interval.
+    // Threshold is max(30s, interval * 2.5) = 50s for a 20s interval.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.advanceTimersByTimeAsync(40_000);
     });
     expect(screen.queryByText(/Signal Stale/i), 'went stale too early').toBeNull();
 
@@ -406,7 +432,7 @@ describe('radar render cap', () => {
 
       // Next poll sees it has left the overhead radius, which finalises the pass.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(20_000);
       });
       expect(fetchMock).toHaveBeenCalledTimes(2);
 

@@ -8,6 +8,7 @@ import {
   isValidCoordinate,
   loadHistory,
   loadSettings,
+  POLL_INTERVAL_OPTIONS,
   saveHistory,
   SETTINGS_KEY
 } from './storage';
@@ -246,5 +247,49 @@ describe('write path', () => {
 
   it('reports success on a normal write', () => {
     expect(saveHistory([])).toBe(true);
+  });
+});
+
+describe('poll interval migration', () => {
+  it('exposes the option set the UI renders', () => {
+    expect(POLL_INTERVAL_OPTIONS).toEqual([20, 45, 60, 90]);
+    // The default must itself be selectable, or no button appears active.
+    expect(POLL_INTERVAL_OPTIONS).toContain(DEFAULT_SETTINGS.pollIntervalSeconds);
+  });
+
+  it('accepts every current option', () => {
+    for (const sec of POLL_INTERVAL_OPTIONS) {
+      expect(coerceSettings({ pollIntervalSeconds: sec }).pollIntervalSeconds).toBe(sec);
+    }
+  });
+
+  /**
+   * The point of validating by membership rather than range: existing installs
+   * hold 5 or 10 from the old, faster option set. A range check of 1..300 would
+   * have preserved those, so an upgraded client would have kept polling three to
+   * four times faster than the new minimum allows.
+   */
+  it('migrates the retired faster intervals up to the default', () => {
+    for (const legacy of [5, 10]) {
+      expect(coerceSettings({ pollIntervalSeconds: legacy }).pollIntervalSeconds).toBe(
+        DEFAULT_SETTINGS.pollIntervalSeconds
+      );
+    }
+  });
+
+  it('rejects a value that is in range but not an option', () => {
+    // 30 was valid under the old set and is inside any plausible numeric range,
+    // but there is no button for it now.
+    expect(coerceSettings({ pollIntervalSeconds: 30 }).pollIntervalSeconds).toBe(
+      DEFAULT_SETTINGS.pollIntervalSeconds
+    );
+  });
+
+  it('rejects non-numeric and out-of-set values', () => {
+    for (const bad of ['20', null, undefined, NaN, 0, -20, 1000]) {
+      expect(coerceSettings({ pollIntervalSeconds: bad }).pollIntervalSeconds).toBe(
+        DEFAULT_SETTINGS.pollIntervalSeconds
+      );
+    }
   });
 });
