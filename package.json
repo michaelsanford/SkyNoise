@@ -1,8 +1,22 @@
 {
-  "name": "yhu",
+  "name": "skynoise",
   "private": true,
   "version": "0.0.0",
+  "description": "Privacy-first PWA that tracks overhead flights and assesses their acoustic noise profiles.",
+  "license": "MIT",
+  "author": "Michael Sanford",
+  "homepage": "https://michaelsanford.github.io/SkyNoise/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/michaelsanford/SkyNoise.git"
+  },
+  "bugs": {
+    "url": "https://github.com/michaelsanford/SkyNoise/issues"
+  },
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

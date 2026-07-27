@@ -19,16 +19,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      # Signal only, deliberately non-blocking and --omit=dev. The current 8
+      # "high" findings are ejs/jake reached transitively through
+      # vite-plugin-pwa -> workbox-build: build-time only, never in the shipped
+      # bundle, and with no non-breaking upgrade available. Gating on them would
+      # make CI permanently red, which teaches everyone to ignore CI. Scoping to
+      # production deps means a finding here is one that actually reaches users.
+      - name: Dependency Audit (production, advisory)
+        run: npm audit --omit=dev --audit-level=moderate
+        continue-on-error: true
 
       - name: Code Linting
         run: npm run lint

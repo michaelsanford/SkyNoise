@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # Dependabot *security* updates are enabled repo-side, but those only fire on
+  # a published advisory. This adds routine version updates.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # One PR for the routine churn, so review effort tracks risk rather than
+      # dependency count. Majors stay individual — they are the ones that break.
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  # This is the ecosystem that makes SHA-pinning maintainable. Every `uses:` is
+  # pinned to a commit SHA; without this they would silently freeze at whatever
+  # version was current the day they were pinned, including through a CVE.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: chore
+      include: scope
