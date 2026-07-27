@@ -15,7 +15,12 @@ const config = readFileSync('vite.config.ts', 'utf8');
 function pngInfo(path: string) {
   const b = readFileSync(path);
   expect(b.toString('hex', 0, 4), `${path} is not a PNG`).toBe('89504e47');
-  return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), colourType: b[25], bytes: b.length };
+  return {
+    width: b.readUInt32BE(16),
+    height: b.readUInt32BE(20),
+    colourType: b[25],
+    bytes: b.length
+  };
 }
 
 describe('manifest identity', () => {
@@ -71,7 +76,8 @@ describe('maskable safe zone', () => {
     let o = 8;
     while (o < buf.length) {
       const len = buf.readUInt32BE(o);
-      if (buf.toString('ascii', o + 4, o + 8) === 'IDAT') idat.push(buf.subarray(o + 8, o + 8 + len));
+      if (buf.toString('ascii', o + 4, o + 8) === 'IDAT')
+        idat.push(buf.subarray(o + 8, o + 8 + len));
       o += 12 + len;
     }
     const raw = zlib.inflateSync(Buffer.concat(idat));
@@ -91,7 +97,9 @@ describe('maskable safe zone', () => {
         else if (filter === 3) v += (a + b) >> 1;
         else if (filter === 4) {
           const p = a + b - c;
-          const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+          const pa = Math.abs(p - a),
+            pb = Math.abs(p - b),
+            pc = Math.abs(p - c);
           v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
         }
         px[y * stride + x] = v & 0xff;

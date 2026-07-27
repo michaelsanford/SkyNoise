@@ -20,7 +20,10 @@ export function determineTrajectory(
   return 'transit';
 }
 
-export function classifyNoise(ac: RawAircraft): { level: 'high' | 'medium' | 'low'; description: string } {
+export function classifyNoise(ac: RawAircraft): {
+  level: 'high' | 'medium' | 'low';
+  description: string;
+} {
   const typeCode = (ac.t || '').toUpperCase();
   const desc = (ac.desc || '').toUpperCase();
   const alt = typeof ac.alt_baro === 'number' ? ac.alt_baro : 10000;
@@ -31,14 +34,19 @@ export function classifyNoise(ac: RawAircraft): { level: 'high' | 'medium' | 'lo
   }
 
   // Jets and large passenger aircraft (e.g. A320, B738, CRJ9, E190, heavy A330/B777)
-  const isJet = /^(A3\d\d|B7\d\d|CRJ|E1\d\d|E2\d\d|MD\d\d|F100|RJ\d\d)/.test(typeCode) || 
-                desc.includes('JET') || desc.includes('BOEING') || desc.includes('AIRBUS');
+  const isJet =
+    /^(A3\d\d|B7\d\d|CRJ|E1\d\d|E2\d\d|MD\d\d|F100|RJ\d\d)/.test(typeCode) ||
+    desc.includes('JET') ||
+    desc.includes('BOEING') ||
+    desc.includes('AIRBUS');
 
   // Turboprops / regional commuters (e.g., DH8D/Q400, AT76, SF34)
   const isTurboprop = /^(DH8|AT7|SF3|ATR|JS)/.test(typeCode) || desc.includes('TURBOPROP');
 
   // Helicopters
-  const isHelicopter = /^(B06|H125|H135|H145|AW139|R44|R66|EC30|EC20|AS50)/.test(typeCode) || desc.includes('HELICOPTER');
+  const isHelicopter =
+    /^(B06|H125|H135|H145|AW139|R44|R66|EC30|EC20|AS50)/.test(typeCode) ||
+    desc.includes('HELICOPTER');
 
   let level: 'high' | 'medium' | 'low' = 'low';
 
@@ -53,6 +61,12 @@ export function classifyNoise(ac: RawAircraft): { level: 'high' | 'medium' | 'lo
     level = alt < 1000 ? 'medium' : 'low';
   }
 
-  const typeDesc = isJet ? 'Jet' : isHelicopter ? 'Helicopter' : isTurboprop ? 'Turboprop' : 'Light Aircraft';
+  const typeDesc = isJet
+    ? 'Jet'
+    : isHelicopter
+      ? 'Helicopter'
+      : isTurboprop
+        ? 'Turboprop'
+        : 'Light Aircraft';
   return { level, description: `${typeDesc} (${typeCode || 'Unknown'})` };
 }

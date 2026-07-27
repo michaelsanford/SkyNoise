@@ -129,7 +129,12 @@ describe('polling scheduler', () => {
   it('never backs off to a delay shorter than the chosen interval', async () => {
     localStorage.setItem(
       SETTINGS_KEY,
-      JSON.stringify({ homeLat: 45.5175, homeLon: -73.4169, useGPS: false, pollIntervalSeconds: 90 })
+      JSON.stringify({
+        homeLat: 45.5175,
+        homeLon: -73.4169,
+        useGPS: false,
+        pollIntervalSeconds: 90
+      })
     );
     const fetchMock = vi.fn().mockResolvedValue(rateLimited());
     vi.stubGlobal('fetch', fetchMock);
@@ -147,10 +152,7 @@ describe('polling scheduler', () => {
   });
 
   it('resets the delay after a success following a backoff', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(rateLimited())
-      .mockResolvedValue(okResponse());
+    const fetchMock = vi.fn().mockResolvedValueOnce(rateLimited()).mockResolvedValue(okResponse());
     vi.stubGlobal('fetch', fetchMock);
 
     await act(async () => {
@@ -233,7 +235,10 @@ describe('compass throttling', () => {
 
   it('cancels a queued frame on unmount', async () => {
     const cancel = vi.fn();
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 42));
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 42)
+    );
     vi.stubGlobal('cancelAnimationFrame', cancel);
 
     let unmount!: () => void;
@@ -373,7 +378,11 @@ describe('radar render cap', () => {
     const total = 90;
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ac: manyAircraft(total) }) })
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ac: manyAircraft(total) })
+      })
     );
 
     await act(async () => {
@@ -389,7 +398,9 @@ describe('radar render cap', () => {
   it('says nothing about truncation when under the cap', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ac: manyAircraft(5) }) })
+      vi
+        .fn()
+        .mockResolvedValue({ ok: true, status: 200, json: async () => ({ ac: manyAircraft(5) }) })
     );
 
     await act(async () => {

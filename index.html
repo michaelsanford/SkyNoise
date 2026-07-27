@@ -33,7 +33,10 @@
       spec, and GitHub Pages cannot send response headers. Clickjacking is handled
       separately with a scripted frame check.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; connect-src 'self' https://api.airplanes.live; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; upgrade-insecure-requests" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; connect-src 'self' https://api.airplanes.live; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; upgrade-insecure-requests"
+    />
     <!-- The only referrer control available without response headers. After
          self-hosting the font there is no third party left to leak to, but this
          makes that durable. -->
@@ -46,9 +49,15 @@
     <!-- Self-hosted variable font: one file covers weights 400-800. Preloaded
          because the stylesheet that references it is discovered a round-trip
          later. crossorigin is required on font preloads even same-origin. -->
-    <link rel="preload" as="font" type="font/woff2" href="/fonts/outfit-latin-var.woff2" crossorigin />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/outfit-latin-var.woff2"
+      crossorigin
+    />
   </head>
-  <body style="margin: 0; background-color: #0b0f19;">
+  <body style="margin: 0; background-color: #0b0f19">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
