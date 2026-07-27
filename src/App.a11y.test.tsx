@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
-import { SETTINGS_KEY } from './utils/storage';
+import { POLL_INTERVAL_OPTIONS, SETTINGS_KEY } from './utils/storage';
 
 /**
  * Accessibility guarantees.
@@ -160,7 +160,7 @@ describe('segmented groups expose selection', () => {
 
     const group = screen.getByRole('radiogroup', { name: /Fetch Interval/ });
     const radios = within(group).getAllByRole('radio');
-    expect(radios.length).toBe(5);
+    expect(radios.length).toBe(POLL_INTERVAL_OPTIONS.length);
     expect(radios.filter(r => r.getAttribute('aria-checked') === 'true')).toHaveLength(1);
   });
 
