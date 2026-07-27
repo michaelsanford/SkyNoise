@@ -5,12 +5,17 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Allows deploy.yml to reuse this workflow as a prerequisite, so a failing
+  # lint/typecheck/test/build cannot reach GitHub Pages.
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   verify:
+    # Stable name so it can be referenced as a required status check on `main`.
+    name: Verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -28,8 +33,10 @@ jobs:
       - name: Code Linting
         run: npm run lint
 
+      # `tsc --noEmit` without -b resolves the solution tsconfig.json (files: [])
+      # and checks zero files. `tsc -b --force` walks the project references.
       - name: TypeScript Compilation Check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Run Test Suite
         run: npm run test
