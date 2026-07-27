@@ -128,3 +128,75 @@ describe('no transition: all', () => {
     expect(css).not.toMatch(/transition:\s*all\b/);
   });
 });
+
+describe('accessibility styling', () => {
+  it('has no remaining sub-AA #64748b text', () => {
+    // 3.07:1 against the lightest card backdrop (#1e293b), under the 4.5:1 AA
+    // threshold for body text. Replaced with #94a3b8 at 5.71:1.
+    expect(css).not.toContain('#64748b');
+    expect(tsx).not.toContain('#64748b');
+  });
+
+  it('gives the invisible switch checkbox a visible focus ring', () => {
+    // The input is opacity:0;width:0;height:0, so it is focusable with no
+    // possible visual indication of its own.
+    expect(css).toMatch(/\.switch input:focus-visible \+ \.slider\s*\{[^}]*outline:/s);
+  });
+
+  it('gives tabs and buttons focus rings', () => {
+    expect(css).toMatch(/\.tab:focus-visible/);
+    expect(css).toMatch(/button\.btn:focus-visible/);
+  });
+
+  it('uses :focus-visible rather than bare :focus for rings', () => {
+    // Bare :focus would leave a ring after a mouse click.
+    const ringSelectors = css.match(/^[^\n{]*:focus[^-][^\n{]*\{/gm) ?? [];
+    const offenders = ringSelectors.filter(s => !s.includes(':focus-visible'));
+    // The pre-existing `input:focus, select:focus` border restyle is allowed;
+    // it is not an outline ring.
+    expect(offenders.every(s => s.includes('input:focus') || s.includes('select:focus'))).toBe(true);
+  });
+
+  it('guards the gradient heading so it cannot render invisible', () => {
+    // -webkit-text-fill-color: transparent with no standard background-clip
+    // makes the title invisible wherever the webkit property is ignored.
+    expect(css).toMatch(/@supports \(\(background-clip: text\)/);
+    expect(css).toMatch(/@media \(forced-colors: active\)/);
+  });
+
+  it('encodes radar noise level with a non-colour cue', () => {
+    for (const level of ['high', 'medium', 'low']) {
+      const selector = `.radar-aircraft--${level}::before`;
+      const start = css.indexOf(selector);
+      expect(start, `${selector} is missing`).toBeGreaterThan(-1);
+      // Read the declaration block and require a border, i.e. a shape cue that
+      // survives without colour.
+      const block = css.slice(start, css.indexOf('}', start));
+      expect(block, `${selector} has no border cue`).toContain('border:');
+    }
+  });
+
+  it('provides a visually-hidden utility that stays in the a11y tree', () => {
+    expect(css).toMatch(/\.visually-hidden\s*\{/s);
+    // display:none / visibility:hidden would remove it from the a11y tree.
+    const block = css.slice(css.indexOf('.visually-hidden'), css.indexOf('.visually-hidden') + 400);
+    expect(block).not.toMatch(/display:\s*none/);
+    expect(block).not.toMatch(/visibility:\s*hidden/);
+  });
+});
+
+describe('no blocking native dialogs', () => {
+  it('uses neither confirm() nor alert()', () => {
+    // Both block the event loop, cannot be styled, and are suppressed in some
+    // installed-PWA contexts — so the user may be told nothing at all.
+    //
+    // Comments are stripped first: this file's own explanatory comments mention
+    // both by name, and matching those would make the test permanently red.
+    const code = tsx
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    expect(code).not.toMatch(/\bconfirm\s*\(/);
+    expect(code).not.toMatch(/\balert\s*\(/);
+  });
+});

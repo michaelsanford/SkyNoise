@@ -166,6 +166,28 @@ function getOrientationPermissionAPI(): DeviceOrientationPermissionAPI | null {
 }
 
 // Internal interface for tracking active passes over the house
+/**
+ * Spoken form of the noise level.
+ *
+ * The radar previously encoded this in colour only, with the same glyph for
+ * every aircraft — so it did not survive red/green colour deficiency, and the
+ * tooltip did not mention it either.
+ */
+const NOISE_LABELS: Record<'high' | 'medium' | 'low', string> = {
+  high: 'high noise',
+  medium: 'medium noise',
+  low: 'low noise'
+};
+
+type TabId = 'live' | 'history' | 'settings';
+
+/** Single source of truth for the tablist, so ids and order cannot drift. */
+const TABS: ReadonlyArray<{ id: TabId; label: string; Icon: (p: IconProps) => React.ReactElement }> = [
+  { id: 'live', label: 'Live Tracker', Icon: Icons.Radar },
+  { id: 'history', label: 'Who Was That?', Icon: Icons.History },
+  { id: 'settings', label: 'Settings', Icon: Icons.Settings }
+];
+
 interface ActivePass {
   hex: string;
   flight: string;
@@ -185,7 +207,45 @@ export default function App() {
     updateServiceWorker,
   } = useRegisterSW();
 
-  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'settings'>('live');
+  const [activeTab, setActiveTab] = useState<TabId>('live');
+
+  // Roving-tabindex support: arrow keys move focus between tabs, so the focused
+  // tab has to be imperatively focusable.
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+
+  // Two-step confirmation for the destructive log wipe.
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
+  /**
+   * Message for the aria-live region.
+   *
+   * Replaces alert(): a native dialog blocks the event loop, cannot be styled,
+   * and is suppressed outright in some installed-PWA contexts — so the user
+   * could be told nothing at all.
+   */
+  const [liveMessage, setLiveMessage] = useState('');
+  const announce = useCallback((message: string) => setLiveMessage(message), []);
+
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    const deltas: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
+    const index = TABS.findIndex(t => t.id === activeTab);
+
+    let nextIndex: number | null = null;
+    if (e.key in deltas) {
+      // Wrap around, which is what the tab pattern specifies.
+      nextIndex = (index + deltas[e.key] + TABS.length) % TABS.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = TABS.length - 1;
+    }
+    if (nextIndex === null) return;
+
+    e.preventDefault();
+    const nextId = TABS[nextIndex].id;
+    setActiveTab(nextId);
+    tabRefs.current[nextId]?.focus();
+  };
   
   // Settings State. Validated field-by-field against DEFAULT_SETTINGS, which
   // also performs the migration for properties added since the value was saved.
@@ -717,7 +777,7 @@ export default function App() {
       case 'transit':
         return <span style={{ color: '#94a3b8' }}>Overflight →</span>;
       default:
-        return <span style={{ color: '#64748b' }}>Unknown</span>;
+        return <span style={{ color: '#94a3b8' }}>Unknown</span>;
     }
   };
 
@@ -763,32 +823,43 @@ export default function App() {
         <div className="subtitle">Privacy-First Overhead Flight Tracker</div>
       </header>
 
+      {/*
+        Status announcements. role=status is polite, so it never interrupts, and
+        the region is always present in the DOM — a live region inserted at the
+        same time as its text is frequently not announced at all.
+      */}
+      <div role="status" aria-live="polite" className="visually-hidden">
+        {liveMessage}
+      </div>
+
       {/* Tabs */}
-      <div className="tabs-container">
-        <button 
-          className={`tab ${activeTab === 'live' ? 'active' : ''}`}
-          onClick={() => setActiveTab('live')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
-            <Icons.Radar /> Live Tracker
-          </span>
-        </button>
-        <button 
-          className={`tab ${activeTab === 'history' ? 'active' : ''}`}
-          onClick={() => setActiveTab('history')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
-            <Icons.History /> Who Was That?
-          </span>
-        </button>
-        <button 
-          className={`tab ${activeTab === 'settings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
-            <Icons.Settings /> Settings
-          </span>
-        </button>
+      {/*
+        A real tablist. Previously three unrelated <button>s, so a screen reader
+        announced no relationship between them and no selected state — the active
+        tab was conveyed by colour alone.
+      */}
+      <div className="tabs-container" role="tablist" aria-label="Views">
+        {TABS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            id={`tab-${id}`}
+            role="tab"
+            type="button"
+            aria-selected={activeTab === id}
+            aria-controls={`panel-${id}`}
+            // Roving tabindex: one stop for the whole group, then arrow keys
+            // move between tabs. This is what the tab pattern expects.
+            tabIndex={activeTab === id ? 0 : -1}
+            ref={el => { tabRefs.current[id] = el; }}
+            className={`tab ${activeTab === id ? 'active' : ''}`}
+            onClick={() => setActiveTab(id)}
+            onKeyDown={handleTabKeyDown}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+              <Icon aria-hidden="true" /> {label}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Status Bar */}
@@ -862,6 +933,13 @@ export default function App() {
       )}
 
       {/* Main Views */}
+      <main>
+      <div
+        id="panel-live"
+        role="tabpanel"
+        aria-labelledby="tab-live"
+        hidden={activeTab !== 'live'}
+      >
       {activeTab === 'live' && (
         <div>
           {/* Welcome Screen / No coordinates configured */}
@@ -968,12 +1046,24 @@ export default function App() {
                       const dotColors = { high: '#f43f5e', medium: '#fbbf24', low: '#34d399' };
                       const activeColor = dotColors[ac.noiseLevel];
                       const heading = ac.track || 0;
-                      
+                      // Noise level was encoded by colour alone, with an
+                      // identical glyph for every aircraft, so it was invisible
+                      // to red/green deficiency. It now appears in the label and
+                      // drives a ring modifier class so shape carries it too.
+                      // A title attribute also does not exist on touch, which is
+                      // why aria-label is set as well.
+                      const noiseText = NOISE_LABELS[ac.noiseLevel];
+                      const description =
+                        `${ac.cleanFlight || 'Unknown callsign'}, ${noiseText}, ` +
+                        `${ac.distanceKm} km away, ${ac.altitudeFt.toLocaleString()} feet, heading ${heading}°`;
+
                       return (
-                        <div 
+                        <div
                           key={ac.hex}
-                          className="radar-aircraft"
-                          title={`${ac.cleanFlight || 'Unknown'} (${ac.distanceKm} km, Alt: ${ac.altitudeFt} ft, Heading: ${heading}°)`}
+                          className={`radar-aircraft radar-aircraft--${ac.noiseLevel}`}
+                          role="img"
+                          aria-label={description}
+                          title={description}
                           style={{
                             left: `${left}%`,
                             top: `${top}%`,
@@ -1059,7 +1149,7 @@ export default function App() {
                       })
                     }
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.25rem' }}>
                     Scanning Radius: {settings.detectionRadiusKm} km • Radar shows {aircraft.length} aircraft
                   </div>
                 </div>
@@ -1159,21 +1249,56 @@ export default function App() {
         </div>
       )}
 
-      {/* History View */}
+      </div>
+
+      <div
+        id="panel-history"
+        role="tabpanel"
+        aria-labelledby="tab-history"
+        hidden={activeTab !== 'history'}
+      >
       {activeTab === 'history' && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <h2 style={{ margin: 0, flex: 1 }}>"Who Was That?" Log</h2>
-            {history.length > 0 && (
-              <button 
-                className="btn btn-secondary" 
+            {history.length > 0 && !confirmingClear && (
+              <button
+                type="button"
+                className="btn btn-secondary"
                 style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', display: 'flex', gap: '0.25rem', alignItems: 'center' }}
-                onClick={() => {
-                  if (confirm('Clear local history list?')) setHistory([]);
-                }}
+                onClick={() => setConfirmingClear(true)}
               >
-                <Icons.Trash /> Clear Log
+                <Icons.Trash aria-hidden="true" /> Clear Log
               </button>
+            )}
+            {/* Inline confirmation rather than window.confirm(): native dialogs
+                block the event loop, cannot be styled, and are suppressed
+                outright in some installed-PWA contexts. */}
+            {confirmingClear && (
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Erase all {history.length} entries?</span>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', backgroundColor: '#f43f5e', color: '#ffffff' }}
+                  onClick={() => {
+                    const count = history.length;
+                    setHistory([]);
+                    setConfirmingClear(false);
+                    announce(`Cleared ${count} log entries.`);
+                  }}
+                >
+                  Erase
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem' }}
+                  onClick={() => setConfirmingClear(false)}
+                >
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
           
@@ -1212,7 +1337,14 @@ export default function App() {
         </div>
       )}
 
-      {/* Settings View */}
+      </div>
+
+      <div
+        id="panel-settings"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        hidden={activeTab !== 'settings'}
+      >
       {activeTab === 'settings' && (
         <div>
           {/* Geolocation Permissions Dashboard */}
@@ -1234,11 +1366,16 @@ export default function App() {
             <div className="switch-container">
               <div>
                 <span style={{ fontWeight: 500, fontSize: '0.95rem' }}>Use Geolocation (GPS)</span>
-                <div className="switch-label-desc">Automatically track coordinates from device sensor</div>
+                <div className="switch-label-desc" id="gps-switch-desc">Automatically track coordinates from device sensor</div>
               </div>
+              {/* The wrapping <label>'s only child is a decorative <span>, so the
+                  checkbox had an entirely empty accessible name. aria-label
+                  supplies one; aria-describedby attaches the helper text. */}
               <label className="switch">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
+                  aria-label="Use Geolocation (GPS)"
+                  aria-describedby="gps-switch-desc"
                   checked={settings.useGPS} 
                   onChange={(e) => {
                     const checked = e.target.checked;
@@ -1270,9 +1407,15 @@ export default function App() {
                 If GPS is denied or you want to monitor from a different location, type in a North American airport code (e.g. CYHU, YUL, KJFK, KLAX).
               </p>
               <form onSubmit={handleAirportLookup} style={{ display: 'flex', gap: '0.5rem' }}>
-                <input 
-                  type="text" 
-                  placeholder="e.g. CYHU or YHU" 
+                {/* Was placeholder-only: a placeholder is not an accessible name
+                    and disappears the moment the field has content. */}
+                <label htmlFor="airport-code" className="visually-hidden">
+                  Airport code (IATA or ICAO)
+                </label>
+                <input
+                  id="airport-code"
+                  type="text"
+                  placeholder="e.g. CYHU or YHU"
                   value={tempAirport}
                   onChange={(e) => setTempAirport(e.target.value)}
                   style={{ textTransform: 'uppercase' }}
@@ -1293,10 +1436,11 @@ export default function App() {
               <h2>Manual Coordinates Override</h2>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
-                  <label>Latitude</label>
-                  <input 
-                    type="number" 
-                    step="0.000001" 
+                  <label htmlFor="manual-lat">Latitude</label>
+                  <input
+                    id="manual-lat"
+                    type="number"
+                    step="0.000001"
                     placeholder="e.g. 45.5175"
                     value={tempLat} 
                     onChange={(e) => setTempLat(e.target.value)} 
@@ -1304,10 +1448,11 @@ export default function App() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Longitude</label>
-                  <input 
-                    type="number" 
-                    step="0.000001" 
+                  <label htmlFor="manual-lon">Longitude</label>
+                  <input
+                    id="manual-lon"
+                    type="number"
+                    step="0.000001"
                     placeholder="e.g. -73.4169" 
                     value={tempLon} 
                     onChange={(e) => setTempLon(e.target.value)} 
@@ -1326,12 +1471,21 @@ export default function App() {
               Choose how often to fetch aircraft data. If the app encounters API rate limits, it will automatically back off and poll less frequently.
             </p>
             <div className="form-group">
-              <label>Fetch Interval: {settings.pollIntervalSeconds} seconds</label>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {/* Selection was signalled only by the btn/btn-secondary class, i.e.
+                  by colour. role=radio + aria-checked exposes it non-visually. */}
+              <div id="interval-label">Fetch Interval: {settings.pollIntervalSeconds} seconds</div>
+              <div
+                role="radiogroup"
+                aria-labelledby="interval-label"
+                style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}
+              >
                 {[5, 10, 20, 30, 60].map((sec) => (
                   <button
                     key={sec}
                     type="button"
+                    role="radio"
+                    aria-checked={settings.pollIntervalSeconds === sec}
+                    aria-label={`Poll every ${sec} seconds`}
                     className={`btn ${settings.pollIntervalSeconds === sec ? '' : 'btn-secondary'}`}
                     style={{
                       flex: '1 1 auto',
@@ -1358,9 +1512,10 @@ export default function App() {
           <div className="card">
             <h2>Tracker Thresholds</h2>
             <div className="form-group">
-              <label>Detection Radius: {settings.detectionRadiusKm} km</label>
-              <input 
-                type="range" 
+              <label htmlFor="detection-radius">Detection Radius: {settings.detectionRadiusKm} km</label>
+              <input
+                id="detection-radius"
+                type="range"
                 min="5" 
                 max="40" 
                 step="5"
@@ -1371,9 +1526,10 @@ export default function App() {
             </div>
             
             <div className="form-group">
-              <label>Overhead Logging Radius: {settings.overheadRadiusKm} km</label>
-              <input 
-                type="range" 
+              <label htmlFor="overhead-radius">Overhead Logging Radius: {settings.overheadRadiusKm} km</label>
+              <input
+                id="overhead-radius"
+                type="range"
                 min="0.5" 
                 max="5.0" 
                 step="0.5"
@@ -1384,9 +1540,10 @@ export default function App() {
             </div>
 
             <div className="form-group">
-              <label>Maximum Audible Altitude: {settings.maxAltitudeFt.toLocaleString()} feet</label>
-              <input 
-                type="range" 
+              <label htmlFor="max-altitude">Maximum Audible Altitude: {settings.maxAltitudeFt.toLocaleString()} feet</label>
+              <input
+                id="max-altitude"
+                type="range"
                 min="3000" 
                 max="15000" 
                 step="1000"
@@ -1404,15 +1561,25 @@ export default function App() {
               Choose whether the top of the radar screen represents geographic North, or aligns with your device's compass heading.
             </p>
             
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <button 
+            <div
+              role="radiogroup"
+              aria-label="Radar orientation"
+              style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={settings.radarOrientation === 'north-up'}
                 className={`btn ${settings.radarOrientation === 'north-up' ? '' : 'btn-secondary'}`}
                 style={{ flex: 1 }}
                 onClick={() => setSettings(prev => ({ ...prev, radarOrientation: 'north-up' }))}
               >
                 North Up
               </button>
-              <button 
+              <button
+                type="button"
+                role="radio"
+                aria-checked={settings.radarOrientation === 'heading-up'}
                 className={`btn ${settings.radarOrientation === 'heading-up' ? '' : 'btn-secondary'}`}
                 style={{ flex: 1 }}
                 onClick={async () => {
@@ -1423,10 +1590,12 @@ export default function App() {
                       if (res === 'granted') {
                         setSettings(prev => ({ ...prev, radarOrientation: 'heading-up' }));
                       } else {
-                        alert('Compass permission denied. Defaulting to North Up.');
+                        announce('Compass permission denied. Radar stays in North Up mode.');
                       }
                     } catch (err) {
-                      alert('Compass access failed: ' + err);
+                      announce(
+                        `Compass access failed: ${err instanceof Error ? err.message : String(err)}`
+                      );
                     }
                   } else {
                     setSettings(prev => ({ ...prev, radarOrientation: 'heading-up' }));
@@ -1438,7 +1607,7 @@ export default function App() {
             </div>
             
             {settings.radarOrientation === 'heading-up' && (
-              <div style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', marginTop: '0.5rem' }}>
                 Compass Reading: {deviceHeading !== null ? `${Math.round(deviceHeading)}°` : 'calibrating...'}
                 <br/>
                 <span style={{ fontStyle: 'italic' }}>Note: If reading is erratic, wave device in a figure-8 motion to calibrate sensor.</span>
@@ -1456,8 +1625,9 @@ export default function App() {
                 </p>
               </div>
               <label className="switch" style={{ flexShrink: 0, marginLeft: '1rem' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
+                  aria-label="Show airports on radar"
                   checked={settings.showAirportsOnRadar} 
                   onChange={(e) => setSettings(prev => ({ ...prev, showAirportsOnRadar: e.target.checked }))}
                 />
@@ -1481,11 +1651,13 @@ export default function App() {
             </div>
           </div>
           {/* App Version / Commit SHA Footer */}
-          <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#64748b', fontSize: '0.75rem' }}>
+          <div style={{ textAlign: 'center', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#94a3b8', fontSize: '0.75rem' }}>
             SkyNoise Tracker (commit: {__COMMIT_SHA__})
           </div>
         </div>
       )}
+      </div>
+      </main>
     </div>
   );
 }
