@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { RawAircraft, AircraftUpdate, UserSettings, OverheadEvent } from './types';
-import { getDistanceKm, getBearing, calculateCPA } from './utils/geo';
+import { getDistanceKm, getBearing, calculateCPA, angularDeltaDeg } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
 import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
 import {
@@ -128,6 +128,28 @@ const Icons = {
 };
 
 /**
+ * Minimum compass movement, in degrees, that justifies a re-render.
+ *
+ * `deviceorientation` fires up to ~60x/sec. Every update re-renders the whole
+ * app: all aircraft polar maths, every airport haversine, and every derived
+ * list. Below roughly a degree the radar does not visibly move, so the work is
+ * pure waste — and it lands while `transition: transform 0.1s` is mid-flight on
+ * dozens of elements, so it also fights the animation it is driving.
+ */
+const HEADING_EPSILON_DEG = 1;
+
+/** Upper bound on the exponential backoff delay. */
+const MAX_POLL_BACKOFF_MS = 60_000;
+
+/**
+ * Distinguishes an HTTP 429 from a transport failure.
+ *
+ * The 429 branch already applies its own (larger) backoff before throwing, so
+ * the generic catch must not stack a second multiplier on top of it.
+ */
+class RateLimitError extends Error {}
+
+/**
  * Feature-detect the iOS 13+ orientation permission gate.
  *
  * Narrows through `unknown` rather than casting the window through `any`, so a
@@ -178,7 +200,29 @@ export default function App() {
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [gpsPermissionState, setGpsPermissionState] = useState<string>('unknown');
+  // Display-only mirror of the effective poll interval (drives the backoff
+  // notice and the staleness threshold). The scheduler reads pollIntervalRef,
+  // not this: see the tracking effect for why.
   const [currentPollIntervalMs, setCurrentPollIntervalMs] = useState<number>(() => (settings.pollIntervalSeconds || 10) * 1000);
+  const pollIntervalRef = useRef<number>((settings.pollIntervalSeconds || 10) * 1000);
+
+  /**
+   * Set the effective poll delay.
+   *
+   * The ref is what the scheduler reads, so a backoff takes effect on the next
+   * tick without re-running the tracking effect. Previously the delay was an
+   * effect dependency, so a 429 tore the timer down and rebuilt it — which also
+   * re-fired the immediate mount fetch, sending an *extra* request to the API
+   * that had just rate-limited us.
+   */
+  const applyPollInterval = useCallback((next: number | ((prev: number) => number)) => {
+    // The ref must be written synchronously. Writing it inside a state updater
+    // instead lets React defer it, so the scheduler can read a stale delay and
+    // the backoff silently fails to apply to the very next tick.
+    const value = typeof next === 'function' ? next(pollIntervalRef.current) : next;
+    pollIntervalRef.current = value;
+    setCurrentPollIntervalMs(value);
+  }, []);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
 
@@ -197,10 +241,12 @@ export default function App() {
 
   const hasCoordinates = settings.homeLat !== null && settings.homeLon !== null;
 
-  // Synchronize dynamic polling rate when settings frequency changes
+  // Synchronize dynamic polling rate when settings frequency changes.
+  // Also clears any active backoff, which is what the user expects from
+  // deliberately picking a new rate.
   useEffect(() => {
-    setCurrentPollIntervalMs(settings.pollIntervalSeconds * 1000);
-  }, [settings.pollIntervalSeconds]);
+    applyPollInterval(settings.pollIntervalSeconds * 1000);
+  }, [settings.pollIntervalSeconds, applyPollInterval]);
 
   // Track phone compass/heading if radar orientation is heading-up
   useEffect(() => {
@@ -209,17 +255,39 @@ export default function App() {
       return;
     }
 
+    // Coalesce the sensor stream to at most one state update per frame, and
+    // only when the needle has actually moved. Without this the raw ~60Hz event
+    // rate drives ~60 full-tree re-renders per second.
+    let frameId: number | null = null;
+    let pendingHeading: number | null = null;
+    let appliedHeading: number | null = null;
+
+    const flush = () => {
+      frameId = null;
+      const next = pendingHeading;
+      if (next === null) return;
+      if (appliedHeading !== null && angularDeltaDeg(next, appliedHeading) < HEADING_EPSILON_DEG) {
+        return;
+      }
+      appliedHeading = next;
+      setDeviceHeading(next);
+    };
+
     const handleOrientation = (e: DeviceOrientationEvent) => {
       // Sensor input, so validate rather than trust: a non-finite heading would
       // propagate into `rotate(${-deviceHeading}deg)` and produce an invalid
       // transform on the radar and every counter-rotated label.
       const webkitHeading = e.webkitCompassHeading;
       if (typeof webkitHeading === 'number' && Number.isFinite(webkitHeading)) {
-        setDeviceHeading(webkitHeading);
+        pendingHeading = webkitHeading;
       } else if (e.alpha !== null && Number.isFinite(e.alpha)) {
         // Android/Chrome fallback (alpha increases CCW, we convert to degrees CW)
-        setDeviceHeading((360 - e.alpha) % 360);
+        pendingHeading = (360 - e.alpha) % 360;
+      } else {
+        return;
       }
+      // Keep the newest reading; one frame gets one update.
+      if (frameId === null) frameId = requestAnimationFrame(flush);
     };
 
     const setupOrientation = async () => {
@@ -245,6 +313,9 @@ export default function App() {
 
     return () => {
       window.removeEventListener('deviceorientation', handleOrientation);
+      // Drop any frame still queued, or it fires after unmount / after the user
+      // has already switched back to north-up.
+      if (frameId !== null) cancelAnimationFrame(frameId);
     };
   }, [settings.radarOrientation]);
 
@@ -337,15 +408,33 @@ export default function App() {
     };
   }, [settings.useGPS]);
 
-  // Aircraft tracking loop
+  /**
+   * Aircraft tracking loop.
+   *
+   * Depends on `hasCoordinates` alone. Two things make that safe:
+   *   - live config is read through `settingsRef`, so changing radius, altitude
+   *     or orientation does not tear down the timer
+   *   - the poll delay is read from `pollIntervalRef` at schedule time, so a
+   *     backoff changes the *next* delay without restarting anything
+   *
+   * That second point is the fix. The delay used to be a dependency, so every
+   * 429 (x2), network error (x1.5) and successful reset re-ran this effect —
+   * clearing the interval, rebuilding it, and re-firing the immediate mount
+   * fetch. A rate-limit response therefore provoked an extra out-of-band request
+   * against the very API that had just asked us to slow down.
+   *
+   * A self-scheduling timeout rather than setInterval: it also guarantees the
+   * gap is measured from when a response lands, so a slow response can never
+   * queue overlapping requests.
+   */
   useEffect(() => {
-    const currentSettings = settingsRef.current;
-    if (currentSettings.homeLat === null || currentSettings.homeLon === null) {
+    if (!hasCoordinates) {
       setAircraft([]);
       return;
     }
 
-    let intervalId: number;
+    let cancelled = false;
+    let timeoutId: number | undefined;
     let isFetching = false;
 
     const fetchAircraftData = async () => {
@@ -371,8 +460,10 @@ export default function App() {
         const response = await fetch(url);
         
         if (response.status === 429) {
-          setCurrentPollIntervalMs(prev => Math.min(60000, prev * 2));
-          throw new Error("Rate limited by API server. Automatically backing off polling frequency.");
+          applyPollInterval(prev => Math.min(MAX_POLL_BACKOFF_MS, prev * 2));
+          throw new RateLimitError(
+            'Rate limited by API server. Automatically backing off polling frequency.'
+          );
         }
 
         if (!response.ok) {
@@ -384,7 +475,7 @@ export default function App() {
         setLastFetchTime(new Date());
         setFetchError(null);
         // Reset backoff on successful fetch
-        setCurrentPollIntervalMs(snapSettings.pollIntervalSeconds * 1000);
+        applyPollInterval(snapSettings.pollIntervalSeconds * 1000);
 
         // Process aircraft updates
         const updatedList: AircraftUpdate[] = rawList
@@ -433,8 +524,12 @@ export default function App() {
         // exists. A thrown non-Error would otherwise render "undefined" to the user.
         const message = err instanceof Error ? err.message : String(err);
         setFetchError(`Network error fetching radar data: ${message}`);
-        // Backoff slightly on network error
-        setCurrentPollIntervalMs(prev => Math.min(60000, prev * 1.5));
+        // Back off on transport failures only. A 429 already applied its own
+        // larger multiplier before throwing; stacking this on top made a single
+        // rate-limit response jump 10s -> 20s -> 30s.
+        if (!(err instanceof RateLimitError)) {
+          applyPollInterval(prev => Math.min(MAX_POLL_BACKOFF_MS, prev * 1.5));
+        }
       } finally {
         isFetching = false;
         setIsPolling(false);
@@ -515,16 +610,29 @@ export default function App() {
       });
     };
 
-    // Trigger immediately on load
-    fetchAircraftData();
+    // Re-read the delay from the ref at schedule time, so the current backoff
+    // applies without this effect ever re-running.
+    const scheduleNext = () => {
+      if (cancelled) return;
+      timeoutId = window.setTimeout(tick, pollIntervalRef.current);
+    };
 
-    // Trigger periodically
-    intervalId = window.setInterval(fetchAircraftData, currentPollIntervalMs);
+    const tick = async () => {
+      await fetchAircraftData();
+      scheduleNext();
+    };
+
+    // Immediate first fetch. Now reached only on mount or when coordinates are
+    // first acquired — no longer on every backoff change.
+    void tick();
 
     return () => {
-      clearInterval(intervalId);
+      cancelled = true;
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
-  }, [currentPollIntervalMs, hasCoordinates]);
+    // applyPollInterval is useCallback([]) — stable identity, so listing it
+    // satisfies the linter without widening what can restart the loop.
+  }, [hasCoordinates, applyPollInterval]);
 
   // Clean active passes on component unmount
   useEffect(() => {

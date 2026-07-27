@@ -16,6 +16,18 @@ export function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: nu
 }
 
 /**
+ * Smallest absolute angular distance between two compass bearings, in degrees
+ * (0-180).
+ *
+ * Naive subtraction wraps badly: 359 deg and 1 deg are 2 deg apart, not 358.
+ * Used to decide whether a new compass reading is worth re-rendering for.
+ */
+export function angularDeltaDeg(a: number, b: number): number {
+  const diff = Math.abs(((a - b) % 360 + 360) % 360);
+  return diff > 180 ? 360 - diff : diff;
+}
+
+/**
  * Calculates bearing from start to end coordinate in degrees (0-360).
  */
 export function getBearing(lat1: number, lon1: number, lat2: number, lon2: number): number {

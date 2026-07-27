@@ -39,13 +39,25 @@ A serverless, client-only React 19 + TypeScript + Vite 8 PWA. There is no backen
 - `src/utils/airports.ts` — offline `NORTH_AMERICAN_AIRPORTS` table; doubles as the GPS-less location fallback *and* the source of the on-radar airport markers.
 - `src/types.ts` — `RawAircraft` (API shape, all optional) → `AircraftUpdate` (enriched, what the UI consumes) → `OverheadEvent` (persisted history record).
 
-Only `geo.ts` and `noise.ts` have tests. New computational logic belongs in `src/utils/` with a colocated `*.test.ts`, not inline in `App.tsx`.
+New computational logic belongs in `src/utils/` with a colocated `*.test.ts`, not inline in `App.tsx`. Component-level tests use jsdom + Testing Library; `src/test/setup.ts` stubs the five APIs `App` touches on first render (`localStorage`, `geolocation`, `permissions`, `fetch`, `DeviceOrientationEvent`), and `virtual:pwa-register/react` is aliased to a mock for tests only.
 
 ### Polling loop and its invariants
 
-The tracking effect in `App.tsx` depends only on `[currentPollIntervalMs, hasCoordinates]` — deliberately narrow so that changing radius/altitude/etc. does not tear down and restart the interval. It reads live config through `settingsRef.current` instead. **Preserve this**: adding `settings` to that dep array recreates the timer on every GPS tick.
+The tracking effect in `App.tsx` depends only on `[hasCoordinates, applyPollInterval]` — deliberately narrow. Two mechanisms keep it that way, and both matter:
 
-Backoff is encoded in `currentPollIntervalMs`: HTTP 429 doubles it (cap 60 s), a network error multiplies by 1.5, and a successful fetch resets it to `settings.pollIntervalSeconds * 1000`. Because the interval is a dependency, each change legitimately restarts the timer.
+- Live config is read through `settingsRef.current`, so changing radius/altitude/orientation never tears down the timer. **Never add `settings` to that dep array** — it would recreate the timer on every GPS tick.
+- The poll delay is read from `pollIntervalRef.current` at schedule time, *not* from the `currentPollIntervalMs` state. That state exists only to drive the UI (the backoff notice and the staleness threshold).
+
+It is a self-scheduling `setTimeout`, not `setInterval`, so the gap is measured from when a response lands — a slow response cannot queue overlapping requests.
+
+Backoff: HTTP 429 doubles the delay (cap 60 s) and throws `RateLimitError`; a *transport* failure multiplies by 1.5; a success resets to `settings.pollIntervalSeconds * 1000`. The generic catch checks `instanceof RateLimitError` so a 429 does not get both multipliers.
+
+Two traps here, both previously live bugs:
+
+1. If the delay is a dependency, every backoff tears down the timer *and* re-fires the immediate mount fetch — so a 429 sends an extra request to the API that just rate-limited you.
+2. `applyPollInterval` must write `pollIntervalRef` **synchronously**, not inside the `setCurrentPollIntervalMs` updater. React defers updaters, so the scheduler would read a stale delay and the backoff would silently not apply to the next tick.
+
+`src/App.polling.test.tsx` pins both with fake timers; reintroducing either makes it fail.
 
 ### Overhead pass detection
 
