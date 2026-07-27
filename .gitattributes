@@ -1,0 +1,17 @@
+# Guarantee LF in the repository regardless of each contributor's core.autocrlf
+# setting, so a Windows and a Linux contributor cannot produce whole-file diffs
+# from line endings alone.
+#
+# Deliberately no `eol=` here: that would also force the *working tree* to LF and
+# rewrite every checked-out file on Windows for no benefit. Checkout stays
+# per-platform; only the stored form is pinned.
+* text=auto
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.ico binary
+*.woff2 binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

@@ -13,16 +13,22 @@ permissions:
 jobs:
   assign:
     runs-on: ubuntu-latest
+    # A `pull_request` event from a fork runs with a read-only token, so
+    # addAssignees returns 403 and every outside contributor's first PR gets a
+    # red X. Skip on forks rather than fail on them.
+    if: github.event_name == 'issues' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Assign Owner
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        # Assignment is a convenience, never a reason to fail a contributor's PR.
+        continue-on-error: true
         with:
           script: |
             const owner = 'michaelsanford';
-            const issue_number = context.payload.issue 
-              ? context.payload.issue.number 
+            const issue_number = context.payload.issue
+              ? context.payload.issue.number
               : context.payload.pull_request.number;
-            
+
             await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
