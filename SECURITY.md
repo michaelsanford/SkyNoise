@@ -51,13 +51,46 @@ equivalent. Consequently the following cannot be set at all:
 
 | Header | Effect of its absence |
 |---|---|
-| `X-Frame-Options` / CSP `frame-ancestors` | The site can be framed by any origin. `frame-ancestors` is additionally ignored inside a `<meta>` tag by spec, so the existing meta CSP cannot express it. Mitigated in-page by a scripted frame check, which is defence-in-depth rather than an equivalent. |
+| `X-Frame-Options` / CSP `frame-ancestors` | The site can be framed by any origin. `frame-ancestors` is additionally ignored inside a `<meta>` tag by spec, so the existing meta CSP cannot express it. Mitigated in-page by a scripted frame check (`src/frame-guard.ts`), which refuses to mount the app and offers a `target="_top"` link out. **This is defence in depth, not an equivalent:** a header is enforced by the browser before any script runs, whereas a scripted check depends on script executing. It raises the effort required; it does not make framing impossible. |
 | `Strict-Transport-Security` | Covered in practice by the `github.io` HSTS preload. |
 | `X-Content-Type-Options` | No sniffing-sensitive user-supplied content is served. |
 | `Referrer-Policy` | Substituted by `<meta name="referrer" content="no-referrer">`. |
 | `Permissions-Policy` | Cannot restrict features at the document level. |
 
 Fixing these properly requires fronting the site with a CDN that can set headers.
+
+#### Trusted Types: evaluated and deliberately not enabled
+
+`require-trusted-types-for 'script'` would be a meaningful hardening against DOM
+XSS. It is **not currently achievable here**, for two independent reasons:
+
+1. **The report-only rollout is impossible on this platform.** Per the CSP
+   specification, `Content-Security-Policy-Report-Only` is *not supported inside a
+   `<meta>` element* — it requires a response header. GitHub Pages cannot send one.
+   So the normal safe path (ship report-only, sweep for violations, then promote)
+   has no first step.
+2. **React 19 ships no Trusted Types integration.** Grepping the production bundle
+   for `trustedTypes`, `TrustedHTML` or `createPolicy` returns **zero** matches,
+   while `innerHTML` appears five times inside React's own DOM paths — including a
+   live assignment in its `<script>`-element branch:
+
+   ```js
+   case 'script': o = s.createElement('div'), o.innerHTML = '<script><\/script>', …
+   ```
+
+   Under an *enforcing* policy that assignment throws. The app does not currently
+   render `<script>` elements or use `dangerouslySetInnerHTML`, so those paths may
+   never execute — but "may never" is not a basis for shipping an enforcing policy
+   that white-screens the app if it is wrong.
+
+Application code is already compatible: `grep` over `src/` finds no `innerHTML`,
+`outerHTML`, `insertAdjacentHTML`, `document.write`, `eval` or
+`dangerouslySetInnerHTML`. The frame warning is built with DOM APIs specifically so
+it does not become the one exception.
+
+**Revisit when** either the site moves behind a CDN that can send a report-only
+header, or React ships Trusted Types support. Until then, enabling it blind trades
+a real availability risk for a speculative benefit.
 
 ### Out of scope
 
