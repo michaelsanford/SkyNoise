@@ -28,9 +28,9 @@ describe('App', () => {
   it('renders the header and all three tabs', () => {
     render(<App />);
     expect(screen.getByRole('heading', { name: 'SkyNoise', level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Live Tracker/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Who Was That/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Settings/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Live Tracker/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Who Was That/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Settings/ })).toBeInTheDocument();
   });
 
   it('shows the welcome state when no location is configured', () => {
@@ -45,10 +45,10 @@ describe('App', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: /Who Was That/ }));
+    await user.click(screen.getByRole('tab', { name: /Who Was That/ }));
     expect(screen.getByRole('heading', { name: /"Who Was That\?" Log/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Settings/ }));
+    await user.click(screen.getByRole('tab', { name: /Settings/ }));
     expect(
       screen.getByRole('heading', { name: /Device Geolocation Status/ })
     ).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('App', () => {
   it('shows the empty state when the history log is empty', async () => {
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole('button', { name: /Who Was That/ }));
+    await user.click(screen.getByRole('tab', { name: /Who Was That/ }));
     expect(screen.getByText(/No overhead flights logged yet/i)).toBeInTheDocument();
   });
 
@@ -65,7 +65,7 @@ describe('App', () => {
     localStorage.setItem(HISTORY_KEY, JSON.stringify([EVENT]));
     const user = userEvent.setup();
     render(<App />);
-    await user.click(screen.getByRole('button', { name: /Who Was That/ }));
+    await user.click(screen.getByRole('tab', { name: /Who Was That/ }));
     expect(screen.getByText(/ACA123/)).toBeInTheDocument();
   });
 

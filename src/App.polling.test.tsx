@@ -112,7 +112,7 @@ describe('polling scheduler', () => {
 
     // The notice lives on the Settings tab, under Scan Refresh Frequency.
     await act(async () => {
-      screen.getByRole('button', { name: /Settings/ }).click();
+      screen.getByRole('tab', { name: /Settings/ }).click();
     });
 
     const notice = screen.queryByText(/Rate Limit Backoff Active/i);
