@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { RawAircraft, AircraftUpdate, UserSettings, OverheadEvent } from './types';
 import { getDistanceKm, getBearing, calculateCPA } from './utils/geo';
 import { determineTrajectory, classifyNoise } from './utils/noise';
-import { lookupAirport } from './utils/airports';
+import { lookupAirport, NORTH_AMERICAN_AIRPORTS } from './utils/airports';
 
 declare const __COMMIT_SHA__: string;
 
@@ -106,7 +106,17 @@ const Icons = {
         <rect x="18" y="5" width="3" height="16" rx="1" fill={level >= 4 ? colorActive : colorInactive} />
       </svg>
     );
-  }
+  },
+  Tower: (props: IconProps) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <line x1="4" y1="21" x2="20" y2="21" />
+      <line x1="10" y1="21" x2="10" y2="3" />
+      <line x1="14" y1="21" x2="14" y2="3" />
+      <line x1="10" y1="3" x2="14" y2="3" />
+      <line x1="8" y1="7" x2="16" y2="7" />
+      <line x1="8" y1="11" x2="16" y2="11" />
+    </svg>
+  )
 };
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -120,7 +130,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   overheadRadiusKm: 1.5,
   useGPS: true,
   pollIntervalSeconds: 10,
-  radarOrientation: 'north-up'
+  radarOrientation: 'north-up',
+  showAirportsOnRadar: true
 };
 
 // Internal interface for tracking active passes over the house
@@ -862,6 +873,43 @@ export default function App() {
                         </div>
                       );
                     })}
+                    
+                    {/* Render airports on radar */}
+                    {settings.showAirportsOnRadar && settings.homeLat !== null && settings.homeLon !== null && 
+                      NORTH_AMERICAN_AIRPORTS.map((ap) => {
+                        const dist = getDistanceKm(settings.homeLat!, settings.homeLon!, ap.lat, ap.lon);
+                         if (dist > settings.detectionRadiusKm) return null;
+                         
+                         const maxR = settings.detectionRadiusKm;
+                         const radiusPercent = (dist / maxR) * 50;
+                         const bearing = getBearing(settings.homeLat!, settings.homeLon!, ap.lat, ap.lon);
+                         const angleRad = ((bearing - 90) * Math.PI) / 180;
+                         
+                         const left = 50 + radiusPercent * Math.cos(angleRad);
+                         const top = 50 + radiusPercent * Math.sin(angleRad);
+                         
+                         return (
+                           <div 
+                             key={ap.code}
+                             className="radar-airport"
+                             title={`${ap.name} (${ap.code}/${ap.iata}) - ${dist.toFixed(1)} km away`}
+                             style={{
+                               left: `${left}%`,
+                               top: `${top}%`,
+                               transform: settings.radarOrientation === 'heading-up' && deviceHeading !== null 
+                                 ? `translate(-50%, -50%) rotate(${deviceHeading}deg)` 
+                                 : 'translate(-50%, -50%)',
+                               transition: 'transform 0.1s ease-out'
+                             }}
+                           >
+                             <Icons.Tower style={{ color: '#38bdf8', opacity: 0.7, filter: 'drop-shadow(0 0 2px #38bdf8)' }} />
+                             <div className="radar-airport-tag">
+                               {ap.iata || ap.code}
+                             </div>
+                           </div>
+                         );
+                      })
+                    }
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
                     Scanning Radius: {settings.detectionRadiusKm} km • Radar shows {aircraft.length} aircraft
@@ -1248,6 +1296,26 @@ export default function App() {
                 <span style={{ fontStyle: 'italic' }}>Note: If reading is erratic, wave device in a figure-8 motion to calibrate sensor.</span>
               </div>
             )}
+          </div>
+
+          {/* Radar Features Toggle Card */}
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Show Airports on Radar</h2>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: '0.2rem 0 0 0' }}>
+                  Mark major North American airports (CYHU, CYUL, etc.) that lie within your radar scanning radius.
+                </p>
+              </div>
+              <label className="switch" style={{ flexShrink: 0, marginLeft: '1rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={settings.showAirportsOnRadar} 
+                  onChange={(e) => setSettings(prev => ({ ...prev, showAirportsOnRadar: e.target.checked }))}
+                />
+                <span className="slider"></span>
+              </label>
+            </div>
           </div>
 
           {/* Compliance & Privacy Disclosure Card */}

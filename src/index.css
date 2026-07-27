@@ -676,3 +676,26 @@ input:checked + .slider:before {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Radar Airport Markers */
+.radar-airport {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  z-index: 8;
+}
+
+.radar-airport-tag {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: #94a3b8;
+  text-shadow: 0 0 3px rgba(0,0,0,0.8);
+  margin-top: 1px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+

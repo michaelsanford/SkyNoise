@@ -43,6 +43,7 @@ export interface UserSettings {
   useGPS: boolean;
   pollIntervalSeconds: number; // custom update frequency in seconds
   radarOrientation: 'north-up' | 'heading-up'; // radar alignment option
+  showAirportsOnRadar: boolean; // toggle to show nearby airports on radar
 }
 
 export interface OverheadEvent {
